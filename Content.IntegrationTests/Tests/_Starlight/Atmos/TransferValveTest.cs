@@ -298,10 +298,11 @@ public sealed class TransferValveTest : InteractionTest
     }
 
     [Test]
-    public async Task BurstTankClosesIt()
+    public async Task BurstTankLeavesItOpen()
     {
         var (valve, one, two) = await SpawnLoadedValve();
         var system = SEntMan.System<TransferValveSystem>();
+        var fresh = await SpawnEntity("OxygenTankFilled", SEntMan.GetCoordinates(PlayerCoords));
 
         await Server.WaitAssertion(() =>
         {
@@ -310,9 +311,37 @@ public sealed class TransferValveTest : InteractionTest
             var volume = Air(two).Volume;
 
             SEntMan.DeleteEntity(one);
-            Assert.That(Valve(valve).Open, Is.False);
+            Assert.That(Valve(valve).Open, "Still open, as in tg");
             Assert.That(Air(two).TotalMoles, Is.EqualTo(moles).Within(0.01f), "The other tank keeps its gas");
-            Assert.That(Air(two).Volume, Is.EqualTo(volume).Within(0.01f), "and its pressure doesn't jump");
+            Assert.That(Air(two).Volume, Is.EqualTo(volume).Within(0.01f), "and its volume");
+            Assert.That(system.SetOpen(valve, false), Is.False, "It can't shut with one tank");
+
+            // A fresh tank goes on, and shutting the valve shares the gas out between them.
+            var freshMoles = Air(fresh).TotalMoles;
+            Assert.That(Slots().TryInsert(valve, "tank_one", fresh, null));
+            Assert.That(Valve(valve).Open);
+            Assert.That(system.SetOpen(valve, false));
+            Assert.That(Air(fresh).TotalMoles, Is.GreaterThan(freshMoles));
+            Assert.That(Air(two).Volume, Is.EqualTo(volume - Air(fresh).Volume).Within(0.01f));
+        });
+    }
+
+    [Test]
+    public async Task TurnsByHandWithOneTank()
+    {
+        var coords = SEntMan.GetCoordinates(PlayerCoords);
+        var valve = await SpawnEntity("TransferValve", coords);
+        var tank = await SpawnEntity("OxygenTankFilled", coords);
+
+        await Server.WaitAssertion(() =>
+        {
+            Assert.That(Slots().TryInsert(valve, "tank_one", tank, null));
+            Assert.That(SEntMan.System<SharedHandsSystem>().TryPickupAnyHand(SPlayer, valve));
+            var verbs = SEntMan.System<SharedVerbSystem>().GetLocalVerbs(valve, SPlayer, typeof(Verb));
+            var open = verbs.FirstOrDefault(v => v.Text == Loc.GetString("transfer-valve-verb-open"));
+            Assert.That(open, Is.Not.Null, "The valve turns with one tank, it just has nothing to pour");
+            SEntMan.System<SharedVerbSystem>().ExecuteVerb(open!, SPlayer, valve);
+            Assert.That(Valve(valve).Open, Is.False);
         });
     }
 

@@ -62,7 +62,7 @@ public sealed partial class TransferValveSystem : EntitySystem
     [SubscribeLocalEvent]
     private void OnGetVerbs(Entity<TransferValveComponent> ent, ref GetVerbsEvent<Verb> args)
     {
-        if (!args.CanAccess || !args.CanInteract || !_hands.IsHolding(args.User, ent.Owner) || GetTanks(ent) is null)
+        if (!args.CanAccess || !args.CanInteract || !_hands.IsHolding(args.User, ent.Owner))
             return;
 
         var user = args.User;
@@ -136,26 +136,24 @@ public sealed partial class TransferValveSystem : EntitySystem
     }
 
     /// <summary>
-    /// A tank coming off an open valve takes its share of the gas back with it.
+    /// A tank taken off an open valve takes its share of the gas back with it and shuts the valve.
     /// </summary>
     [SubscribeLocalEvent]
     private void OnRemoved(Entity<TransferValveComponent> ent, ref EntRemovedFromContainerMessage args)
     {
         var slot = args.Container.ID;
-        if (ent.Comp.Open && (slot == ent.Comp.TankOneSlot || slot == ent.Comp.TankTwoSlot))
+        // A tank that burst leaves the valve open, as in tg, until it's turned again with two tanks on.
+        if (ent.Comp.Open && !TerminatingOrDeleted(args.Entity) && (slot == ent.Comp.TankOneSlot || slot == ent.Comp.TankTwoSlot))
         {
             ent.Comp.Open = false;
             var otherSlot = slot == ent.Comp.TankOneSlot ? ent.Comp.TankTwoSlot : ent.Comp.TankOneSlot;
-
-            // A tank that burst is on its way out, and its gas with it; the other tank is left as it is.
-            if (!TerminatingOrDeleted(args.Entity)
-                && TryComp<GasTankComponent>(args.Entity, out var removed)
+            if (TryComp<GasTankComponent>(args.Entity, out var removed)
                 && TryComp<GasTankComponent>(_itemSlots.GetItemOrNull(ent, otherSlot), out var other))
             {
                 if (slot == ent.Comp.TankOneSlot)
-                    Split(ent, removed, other);
+                    Split(removed, other);
                 else
-                    Split(ent, other, removed);
+                    Split(other, removed);
             }
         }
 
@@ -172,7 +170,6 @@ public sealed partial class TransferValveSystem : EntitySystem
 
         if (open)
         {
-            ent.Comp.TankTwoVolume = two.Air.Volume;
             // Grow the volume with the gas so the merge alone doesn't spike the pressure.
             two.Air.Volume += one.Air.Volume;
             _atmos.Merge(two.Air, one.Air.RemoveRatio(1f));
@@ -180,7 +177,7 @@ public sealed partial class TransferValveSystem : EntitySystem
         }
         else
         {
-            Split((ent, ent.Comp), one, two);
+            Split(one, two);
         }
 
         ent.Comp.Open = open;
@@ -196,10 +193,10 @@ public sealed partial class TransferValveSystem : EntitySystem
         SetOpen(ent.AsNullable(), !ent.Comp.Open, user);
     }
 
-    private void Split(Entity<TransferValveComponent> ent, GasTankComponent one, GasTankComponent two)
+    private void Split(GasTankComponent one, GasTankComponent two)
     {
         _atmos.Merge(one.Air, two.Air.RemoveRatio(one.Air.Volume / two.Air.Volume));
-        two.Air.Volume = ent.Comp.TankTwoVolume;
+        two.Air.Volume -= one.Air.Volume;
     }
 
     private void LogOpened(Entity<TransferValveComponent> ent, EntityUid? user)

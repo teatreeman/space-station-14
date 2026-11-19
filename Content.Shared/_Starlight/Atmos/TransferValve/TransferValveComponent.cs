@@ -36,12 +36,6 @@ public sealed partial class TransferValveComponent : Component
     public bool Open;
 
     /// <summary>
-    /// The second tank's own volume, put back when the valve closes.
-    /// </summary>
-    [DataField]
-    public float TankTwoVolume;
-
-    /// <summary>
     /// Trigger keys that flip the valve. A timer starting has its own key, so it doesn't count.
     /// </summary>
     [DataField]
