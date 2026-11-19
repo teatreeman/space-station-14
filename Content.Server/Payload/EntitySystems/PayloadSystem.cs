@@ -137,6 +137,11 @@ public sealed partial class PayloadSystem : EntitySystem
 
     private void OnExamined(EntityUid uid, PayloadCaseComponent component, ExaminedEvent args)
     {
+        // Starlight start: cases that only hold a trigger have no payload to report
+        if (!component.ExaminePayload)
+            return;
+        // Starlight end
+
         using (args.PushGroup(nameof(PayloadCaseComponent)))
         {
             if (!args.IsInDetailsRange)

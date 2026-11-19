@@ -275,6 +275,7 @@
     - PowerCellsStatic
     - NullSpaceDrainer
     - ScienceBlueSpaceStatic
+    - ScienceToxinsStatic
     - ChemistryStatic
     dynamicPacks:
     - StarlightAutolatheLootable

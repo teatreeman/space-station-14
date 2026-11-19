@@ -23,14 +23,14 @@
       map: [ "enum.TransferValveVisualLayers.Device" ]
       visible: false
   - type: Item
-    size: Large
+    size: Ginormous
   - type: Clothing
     sprite: _Starlight/Objects/Devices/transfer_valve.rsi
     quickEquip: false
     slots: NONE
   - type: TransferValve
     valveSound:
-      path: /Audio/_Starlight/Effects/valve_opening.ogg
+      path: /Audio/_Starlight/Effects/TransferValve/valve_opening.ogg
     tankStates:
       OxygenTank: oxygen
       EmergencyOxygenTank: emergency
@@ -48,6 +48,7 @@
       JetpackSecurity: jetpack-sec
       JetpackVoid: jetpack-void
   - type: PayloadCase
+    examinePayload: false
   - type: ItemSlots
     slots:
       tank_one:

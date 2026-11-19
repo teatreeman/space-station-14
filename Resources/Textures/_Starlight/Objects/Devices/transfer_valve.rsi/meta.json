@@ -1,7 +1,7 @@
 {
     "version": 1,
     "license": "CC-BY-SA-3.0",
-    "copyright": "Taken from tgstation at https://github.com/tgstation/tgstation/blob/7784693238703411f51396693fe29fd2a146a7ec/icons/obj/devices/assemblies.dmi (world and tank states), https://github.com/tgstation/tgstation/blob/7784693238703411f51396693fe29fd2a146a7ec/icons/mob/inhands/weapons/bombs_lefthand.dmi and bombs_righthand.dmi (inhand-left, inhand-right), https://github.com/tgstation/tgstation/blob/7784693238703411f51396693fe29fd2a146a7ec/icons/mob/clothing/back/backpack.dmi (equipped-BACKPACK states)",
+    "copyright": "Taken from tgstation at https://github.com/tgstation/tgstation/blob/7784693238703411f51396693fe29fd2a146a7ec/icons/obj/devices/assemblies.dmi (world and tank states), https://github.com/tgstation/tgstation/blob/7784693238703411f51396693fe29fd2a146a7ec/icons/mob/inhands/weapons/bombs_lefthand.dmi (inhand-left), https://github.com/tgstation/tgstation/blob/7784693238703411f51396693fe29fd2a146a7ec/icons/mob/inhands/weapons/bombs_righthand.dmi (inhand-right), https://github.com/tgstation/tgstation/blob/7784693238703411f51396693fe29fd2a146a7ec/icons/mob/clothing/back/backpack.dmi (equipped-BACKPACK states)",
     "size": {
         "x": 32,
         "y": 32

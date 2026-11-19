@@ -109,8 +109,3 @@
   - WeaponLaserSvalinn
   radioChannels:
   - Security
-
-- type: !PartialOnly technology
-  id: ExplosiveTechnology
-  recipeUnlocks:
-  - TransferValve

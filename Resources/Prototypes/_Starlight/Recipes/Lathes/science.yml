@@ -38,6 +38,11 @@
   recipes:
   - OublietteCircuitBoard
 
+- type: latheRecipePack
+  id: ScienceToxinsStatic
+  recipes:
+  - TransferValve
+
 - type: latheRecipe
   parent: BasePartRecipe
   id: TransferValve

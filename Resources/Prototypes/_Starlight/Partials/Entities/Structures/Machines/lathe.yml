@@ -47,6 +47,7 @@
     staticPacks:
     - NullSpaceDrainer
     - ScienceBlueSpaceStatic
+    - ScienceToxinsStatic
     - !Remove SurgeryStatic
     dynamicPacks:
     - ScienceBlueSpace

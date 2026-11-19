@@ -8,7 +8,7 @@ namespace Content.Shared._Starlight.Atmos.TransferValve;
 /// <summary>
 /// A valve between two gas tanks. Opening it pours the first tank into the second.
 /// </summary>
-[RegisterComponent]
+[RegisterComponent, AutoGenerateComponentPause]
 public sealed partial class TransferValveComponent : Component
 {
     /// <summary>
@@ -56,7 +56,7 @@ public sealed partial class TransferValveComponent : Component
     /// <summary>
     /// When a trigger can flip the valve again.
     /// </summary>
-    [ViewVariables]
+    [ViewVariables, AutoPausedField]
     public TimeSpan NextTrigger;
 
     /// <summary>
