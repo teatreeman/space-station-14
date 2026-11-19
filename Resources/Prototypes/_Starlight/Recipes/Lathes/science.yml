@@ -37,3 +37,11 @@
   id: OublietteCircuitBoard
   recipes:
   - OublietteCircuitBoard
+
+- type: latheRecipe
+  parent: BasePartRecipe
+  id: TransferValve
+  result: TransferValve
+  materials:
+    Steel: 300
+    Glass: 100

@@ -2,3 +2,8 @@
 #  id: ScienceBoards
 #  recipes:
 #  - RemoteControlConsoleCircuitboard
+
+- type: !PartialOnly latheRecipePack
+  id: ScienceExplosives
+  recipes:
+  - TransferValve

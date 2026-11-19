@@ -1,0 +1,71 @@
+- type: entity
+  parent: BaseItem
+  id: TransferValve
+  name: tank transfer valve
+  description: A valve between two gas tank ports, with a slot for a trigger. Opening it pours the first tank into the second.
+  components:
+  - type: Sprite
+    sprite: _Starlight/Objects/Devices/transfer_valve.rsi
+    layers:
+    - state: tank
+      map: [ "tank_two" ]
+      offset: "-0.40625,0"
+      visible: false
+    - state: icon
+      map: [ "base" ]
+    - state: tank
+      map: [ "tank_one" ]
+      visible: false
+    - state: device
+      map: [ "device" ]
+      visible: false
+  - type: Item
+    size: Large
+  - type: TransferValve
+  - type: PayloadCase
+  - type: ItemSlots
+    slots:
+      tank_one:
+        name: transfer-valve-slot-tank-one
+        swap: false
+        whitelist:
+          components:
+          - GasTank
+      tank_two:
+        name: transfer-valve-slot-tank-two
+        swap: false
+        whitelist:
+          components:
+          - GasTank
+      payloadTrigger:
+        name: transfer-valve-slot-trigger
+        swap: false
+        whitelist:
+          components:
+          - PayloadTrigger
+  - type: ContainerContainer
+    containers:
+      tank_one: !type:ContainerSlot
+      tank_two: !type:ContainerSlot
+      payloadTrigger: !type:ContainerSlot
+  - type: Appearance
+  - type: GenericVisualizer
+    visuals:
+      enum.TransferValveVisuals.TankOne:
+        tank_one:
+          True: { visible: true }
+          False: { visible: false }
+      enum.TransferValveVisuals.TankTwo:
+        tank_two:
+          True: { visible: true }
+          False: { visible: false }
+      enum.TransferValveVisuals.Device:
+        device:
+          True: { visible: true }
+          False: { visible: false }
+      enum.TransferValveVisuals.Empty:
+        base:
+          True: { state: icon }
+          False: { state: valve }
+  - type: StaticPrice
+    price: 25
