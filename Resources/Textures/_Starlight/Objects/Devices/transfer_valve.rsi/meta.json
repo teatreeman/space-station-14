@@ -1,23 +1,103 @@
 {
     "version": 1,
     "license": "CC-BY-SA-3.0",
-    "copyright": "Taken from tgstation at https://github.com/tgstation/tgstation/blob/7784693238703411f51396693fe29fd2a146a7ec/icons/obj/devices/assemblies.dmi",
+    "copyright": "Taken from tgstation at https://github.com/tgstation/tgstation/blob/7784693238703411f51396693fe29fd2a146a7ec/icons/obj/devices/assemblies.dmi (world and tank states), https://github.com/tgstation/tgstation/blob/7784693238703411f51396693fe29fd2a146a7ec/icons/mob/inhands/weapons/bombs_lefthand.dmi and bombs_righthand.dmi (inhand-left, inhand-right), https://github.com/tgstation/tgstation/blob/7784693238703411f51396693fe29fd2a146a7ec/icons/mob/clothing/back/backpack.dmi (equipped-BACKPACK states)",
     "size": {
         "x": 32,
         "y": 32
     },
     "states": [
         {
-            "name": "valve"
+            "name": "icon",
+            "directions": 1
         },
         {
-            "name": "icon"
+            "name": "valve",
+            "directions": 1
         },
         {
-            "name": "tank"
+            "name": "device",
+            "directions": 1
         },
         {
-            "name": "device"
+            "name": "cables",
+            "directions": 1
+        },
+        {
+            "name": "generic",
+            "directions": 1
+        },
+        {
+            "name": "oxygen",
+            "directions": 1
+        },
+        {
+            "name": "plasma",
+            "directions": 1
+        },
+        {
+            "name": "anesthetic",
+            "directions": 1
+        },
+        {
+            "name": "emergency",
+            "directions": 1
+        },
+        {
+            "name": "emergency_engi",
+            "directions": 1
+        },
+        {
+            "name": "emergency_double",
+            "directions": 1
+        },
+        {
+            "name": "jetpack",
+            "directions": 1
+        },
+        {
+            "name": "jetpack-black",
+            "directions": 1
+        },
+        {
+            "name": "jetpack-void",
+            "directions": 1
+        },
+        {
+            "name": "jetpack-captain",
+            "directions": 1
+        },
+        {
+            "name": "jetpack-sec",
+            "directions": 1
+        },
+        {
+            "name": "jetpack-mini",
+            "directions": 1
+        },
+        {
+            "name": "inhand-left",
+            "directions": 4
+        },
+        {
+            "name": "inhand-right",
+            "directions": 4
+        },
+        {
+            "name": "equipped-BACKPACK",
+            "directions": 4
+        },
+        {
+            "name": "l-equipped-BACKPACK",
+            "directions": 4
+        },
+        {
+            "name": "r-equipped-BACKPACK",
+            "directions": 4
+        },
+        {
+            "name": "lr-equipped-BACKPACK",
+            "directions": 4
         }
     ]
 }

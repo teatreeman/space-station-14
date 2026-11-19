@@ -7,21 +7,44 @@
   - type: Sprite
     sprite: _Starlight/Objects/Devices/transfer_valve.rsi
     layers:
-    - state: tank
-      map: [ "tank_two" ]
+    - state: generic
+      map: [ "enum.TransferValveVisualLayers.TankTwo" ]
       offset: "-0.40625,0"
       visible: false
     - state: icon
-      map: [ "base" ]
-    - state: tank
-      map: [ "tank_one" ]
+      map: [ "enum.TransferValveVisualLayers.Base" ]
+    - state: generic
+      map: [ "enum.TransferValveVisualLayers.TankOne" ]
+      visible: false
+    - state: cables
+      map: [ "enum.TransferValveVisualLayers.Cables" ]
       visible: false
     - state: device
-      map: [ "device" ]
+      map: [ "enum.TransferValveVisualLayers.Device" ]
       visible: false
   - type: Item
     size: Large
+  - type: Clothing
+    sprite: _Starlight/Objects/Devices/transfer_valve.rsi
+    quickEquip: false
+    slots: NONE
   - type: TransferValve
+    tankStates:
+      OxygenTank: oxygen
+      EmergencyOxygenTank: emergency
+      EmergencyNitrogenTank: generic
+      ExtendedEmergencyOxygenTank: emergency_engi
+      ExtendedEmergencyNitrogenTank: generic
+      DoubleEmergencyOxygenTank: emergency_double
+      DoubleEmergencyNitrogenTank: generic
+      NitrousOxideTank: anesthetic
+      PlasmaTank: plasma
+      JetpackBlue: jetpack
+      JetpackBlack: jetpack-black
+      JetpackCaptain: jetpack-captain
+      JetpackMini: jetpack-mini
+      JetpackSecurity: jetpack-sec
+      JetpackVoid: jetpack-void
   - type: PayloadCase
   - type: ItemSlots
     slots:
@@ -29,13 +52,13 @@
         name: transfer-valve-slot-tank-one
         swap: false
         whitelist:
-          components:
+          tags:
           - GasTank
       tank_two:
         name: transfer-valve-slot-tank-two
         swap: false
         whitelist:
-          components:
+          tags:
           - GasTank
       payloadTrigger:
         name: transfer-valve-slot-trigger
@@ -49,23 +72,5 @@
       tank_two: !type:ContainerSlot
       payloadTrigger: !type:ContainerSlot
   - type: Appearance
-  - type: GenericVisualizer
-    visuals:
-      enum.TransferValveVisuals.TankOne:
-        tank_one:
-          True: { visible: true }
-          False: { visible: false }
-      enum.TransferValveVisuals.TankTwo:
-        tank_two:
-          True: { visible: true }
-          False: { visible: false }
-      enum.TransferValveVisuals.Device:
-        device:
-          True: { visible: true }
-          False: { visible: false }
-      enum.TransferValveVisuals.Empty:
-        base:
-          True: { state: icon }
-          False: { state: valve }
   - type: StaticPrice
     price: 25
