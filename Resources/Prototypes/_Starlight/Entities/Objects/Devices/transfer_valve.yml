@@ -29,6 +29,8 @@
     quickEquip: false
     slots: NONE
   - type: TransferValve
+    valveSound:
+      path: /Audio/_Starlight/Effects/valve_opening.ogg
     tankStates:
       OxygenTank: oxygen
       EmergencyOxygenTank: emergency

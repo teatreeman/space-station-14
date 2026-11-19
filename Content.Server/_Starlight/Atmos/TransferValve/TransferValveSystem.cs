@@ -6,6 +6,7 @@ using Content.Shared.Atmos.Components;
 using Content.Shared.Clothing.EntitySystems;
 using Content.Shared.Containers.ItemSlots;
 using Content.Shared.Database;
+using Content.Shared.Examine;
 using Content.Shared.Interaction;
 using Content.Shared.Inventory;
 using Content.Shared.Popups;
@@ -42,10 +43,14 @@ public sealed partial class TransferValveSystem : EntitySystem
     [SubscribeLocalEvent]
     private void OnTrigger(Entity<TransferValveComponent> ent, ref TriggerEvent args)
     {
+        if (args.Key != null && !ent.Comp.KeysIn.Contains(args.Key))
+            return;
+
         // Stops something that fires every tick from flapping the valve.
         if (_timing.CurTime < ent.Comp.NextTrigger)
             return;
 
+        args.Handled = true;
         ent.Comp.NextTrigger = _timing.CurTime + ent.Comp.TriggerCooldown;
         SetOpen(ent.AsNullable(), !ent.Comp.Open, args.User);
     }
@@ -63,6 +68,30 @@ public sealed partial class TransferValveSystem : EntitySystem
             Text = Loc.GetString(open ? "transfer-valve-verb-close" : "transfer-valve-verb-open"),
             Act = () => SetOpen(ent.AsNullable(), !open, user),
         });
+    }
+
+    [SubscribeLocalEvent]
+    private void OnExamined(Entity<TransferValveComponent> ent, ref ExaminedEvent args)
+    {
+        if (!args.IsInDetailsRange)
+            return;
+
+        var one = _itemSlots.GetItemOrNull(ent, ent.Comp.TankOneSlot);
+        var two = _itemSlots.GetItemOrNull(ent, ent.Comp.TankTwoSlot);
+        var device = _itemSlots.GetItemOrNull(ent, ent.Comp.TriggerSlot);
+        using (args.PushGroup(nameof(TransferValveComponent)))
+        {
+            if (one != null)
+                args.PushMarkup(Loc.GetString("transfer-valve-examine-tank-one", ("tank", one.Value)));
+            if (two != null)
+                args.PushMarkup(Loc.GetString("transfer-valve-examine-tank-two", ("tank", two.Value)));
+            if (one == null || two == null)
+                args.PushMarkup(Loc.GetString("transfer-valve-examine-free-port"));
+            if (device != null)
+                args.PushMarkup(Loc.GetString("transfer-valve-examine-device", ("device", device.Value)));
+            if (ent.Comp.Wired)
+                args.PushMarkup(Loc.GetString("transfer-valve-examine-wired"));
+        }
     }
 
     /// <summary>

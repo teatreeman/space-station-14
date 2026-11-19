@@ -1,4 +1,5 @@
 using Content.Shared.Stacks;
+using Content.Shared.Trigger.Systems;
 using Robust.Shared.Audio;
 using Robust.Shared.Prototypes;
 
@@ -39,6 +40,12 @@ public sealed partial class TransferValveComponent : Component
     /// </summary>
     [DataField]
     public float TankTwoVolume;
+
+    /// <summary>
+    /// Trigger keys that flip the valve. A timer starting has its own key, so it doesn't count.
+    /// </summary>
+    [DataField]
+    public HashSet<string> KeysIn = new() { TriggerSystem.DefaultTriggerKey };
 
     /// <summary>
     /// A trigger flips the valve, but not again until this long has passed.

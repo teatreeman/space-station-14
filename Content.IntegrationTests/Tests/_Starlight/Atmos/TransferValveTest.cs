@@ -9,6 +9,7 @@ using Content.Shared.Clothing.Components;
 using Content.Shared.Containers.ItemSlots;
 using Content.Shared.Inventory;
 using Content.Shared.Trigger;
+using Content.Shared.Trigger.Systems;
 using NUnit.Framework;
 using Robust.Shared.GameObjects;
 
@@ -61,6 +62,37 @@ public sealed class TransferValveTest : InteractionTest
             Trigger(valve);
             Assert.That(Valve(valve).Open, Is.False);
         });
+    }
+
+    [Test]
+    public async Task TimerStartingDoesntOpenIt()
+    {
+        var (valve, _, _) = await SpawnLoadedValve();
+
+        await Server.WaitAssertion(() =>
+        {
+            var ev = new TriggerEvent(Key: "startTimer");
+            SEntMan.EventBus.RaiseLocalEvent(valve, ref ev);
+            Assert.That(Valve(valve).Open, Is.False);
+        });
+    }
+
+    [Test]
+    public async Task TimerOpensItAfterItsDelay()
+    {
+        var (valve, _, _) = await SpawnLoadedValve();
+        var timer = await SpawnEntity("TimerTrigger", SEntMan.GetCoordinates(PlayerCoords));
+
+        await Server.WaitAssertion(() =>
+        {
+            Assert.That(Slots().TryInsert(valve, "payloadTrigger", timer, null));
+            var ev = new TriggerEvent(Key: "startTimer");
+            SEntMan.EventBus.RaiseLocalEvent(valve, ref ev);
+            Assert.That(Valve(valve).Open, Is.False);
+        });
+
+        await RunSeconds(6);
+        await Server.WaitAssertion(() => Assert.That(Valve(valve).Open, "The timer should open it once it runs out"));
     }
 
     [Test]
@@ -190,7 +222,7 @@ public sealed class TransferValveTest : InteractionTest
 
     private void Trigger(EntityUid valve)
     {
-        var ev = new TriggerEvent();
+        var ev = new TriggerEvent(Key: TriggerSystem.DefaultTriggerKey);
         SEntMan.EventBus.RaiseLocalEvent(valve, ref ev);
     }
 
