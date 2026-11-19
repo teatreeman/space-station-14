@@ -56,7 +56,7 @@ public sealed partial class TransferValveSystem : EntitySystem
 
         args.Handled = true;
         ent.Comp.NextTrigger = _timing.CurTime + ent.Comp.TriggerCooldown;
-        SetOpen(ent.AsNullable(), !ent.Comp.Open, args.User);
+        Toggle(ent, args.User);
     }
 
     [SubscribeLocalEvent]
@@ -70,7 +70,7 @@ public sealed partial class TransferValveSystem : EntitySystem
         args.Verbs.Add(new Verb
         {
             Text = Loc.GetString(open ? "transfer-valve-verb-close" : "transfer-valve-verb-open"),
-            Act = () => SetOpen(ent.AsNullable(), !open, user),
+            Act = () => Toggle(ent, user),
         });
     }
 
@@ -170,7 +170,6 @@ public sealed partial class TransferValveSystem : EntitySystem
         if (!Resolve(ent, ref ent.Comp) || ent.Comp.Open == open || GetTanks((ent, ent.Comp)) is not var (one, two))
             return false;
 
-        _audio.PlayPvs(ent.Comp.ValveSound, ent);
         if (open)
         {
             ent.Comp.TankTwoVolume = two.Air.Volume;
@@ -186,6 +185,15 @@ public sealed partial class TransferValveSystem : EntitySystem
 
         ent.Comp.Open = open;
         return true;
+    }
+
+    /// <summary>
+    /// Turns the valve, which makes its noise even when there's only one tank to turn it for.
+    /// </summary>
+    private void Toggle(Entity<TransferValveComponent> ent, EntityUid? user)
+    {
+        _audio.PlayPvs(ent.Comp.ValveSound, ent);
+        SetOpen(ent.AsNullable(), !ent.Comp.Open, user);
     }
 
     private void Split(Entity<TransferValveComponent> ent, GasTankComponent one, GasTankComponent two)

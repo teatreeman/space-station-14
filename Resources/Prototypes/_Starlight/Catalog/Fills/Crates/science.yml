@@ -72,8 +72,8 @@
           amount: 2
 
 - type: entity
-  id: CrateScienceTransferValves
   parent: CrateRDSecure
+  id: CrateScienceTransferValves
   name: tank transfer valves crate
   description: Two tank transfer valves. Requires Research Director access to open.
   components:

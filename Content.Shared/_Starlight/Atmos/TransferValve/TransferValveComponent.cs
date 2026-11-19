@@ -93,5 +93,5 @@ public sealed partial class TransferValveComponent : Component
     /// Played when the valve opens or closes.
     /// </summary>
     [DataField]
-    public SoundSpecifier ValveSound = new SoundPathSpecifier("/Audio/Items/hiss.ogg");
+    public SoundSpecifier ValveSound = new SoundCollectionSpecifier("TransferValveTurn");
 }

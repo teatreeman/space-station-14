@@ -16,11 +16,11 @@
     - state: generic
       map: [ "enum.TransferValveVisualLayers.TankOne" ]
       visible: false
-    - state: cables
-      map: [ "enum.TransferValveVisualLayers.Cables" ]
-      visible: false
     - state: device
       map: [ "enum.TransferValveVisualLayers.Device" ]
+      visible: false
+    - state: cables
+      map: [ "enum.TransferValveVisualLayers.Cables" ]
       visible: false
   - type: Item
     size: Ginormous
@@ -30,7 +30,9 @@
     slots: NONE
   - type: TransferValve
     valveSound:
-      path: /Audio/_Starlight/Effects/TransferValve/valve_opening.ogg
+      collection: TransferValveTurn
+      params:
+        volume: -6
     tankStates:
       OxygenTank: oxygen
       EmergencyOxygenTank: emergency
@@ -75,5 +77,16 @@
       tank_two: !type:ContainerSlot
       payloadTrigger: !type:ContainerSlot
   - type: Appearance
+  - type: Damageable
+    damageContainer: Inorganic
+    damageModifierSet: Metallic
+  - type: Destructible
+    thresholds:
+    - trigger:
+        !type:DamageTrigger
+        damage: 40
+      behaviors:
+      - !type:DoActsBehavior
+        acts: [ "Destruction" ]
   - type: StaticPrice
     price: 25
