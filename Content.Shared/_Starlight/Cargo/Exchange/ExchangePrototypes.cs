@@ -142,12 +142,6 @@ public sealed partial class ExchangeSettingsPrototype : IPrototype
     [DataField]
     public TimeSpan TradeCooldown = TimeSpan.FromSeconds(5);
 
-    /// <summary>
-    /// The most the exchange pays out beyond what it took in, per round. Past this the Guild halts sales.
-    /// </summary>
-    [DataField]
-    public int ProfitPool = 5000;
-
     [DataField]
     public TimeSpan SectorNewsMin = TimeSpan.FromMinutes(2);
 

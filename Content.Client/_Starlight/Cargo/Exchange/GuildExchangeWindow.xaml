@@ -7,7 +7,6 @@
     <PanelContainer Name="Background" HorizontalExpand="True" VerticalExpand="True">
         <BoxContainer Orientation="Vertical" Margin="6" SeparationOverride="4">
             <Label Name="TickerLabel" ClipText="True" HorizontalExpand="True" />
-            <Label Name="HaltLabel" Text="{Loc 'guild-exchange-window-halted'}" Visible="False" />
             <BoxContainer Orientation="Horizontal" VerticalExpand="True" SeparationOverride="10">
                 <!-- Markets -->
                 <BoxContainer Orientation="Vertical" MinWidth="250">

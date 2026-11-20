@@ -130,28 +130,6 @@ public sealed class GuildExchangeTest : InteractionTest
     }
 
     [Test]
-    public async Task ProfitPoolCapsPayouts()
-    {
-        var machine = await PoweredExchange();
-        await PlaceInHands("AssistantIDCard");
-
-        await Server.WaitAssertion(() =>
-        {
-            var account = Exchange.GetPersonalAccount(SPlayer)!;
-            account.Cash = 100_000;
-            Assert.That(Exchange.TryTrade(machine, SPlayer, ExchangeAccountKind.Personal, "NanoTrasen", 100), Is.Null);
-
-            // A price nobody could have earned: the Guild must stop paying before the pool runs dry.
-            Exchange.Market!.Companies["NanoTrasen"].Price = 5000;
-            account.NextTrade = TimeSpan.Zero;
-            Assert.That(Exchange.TryTrade(machine, SPlayer, ExchangeAccountKind.Personal, "NanoTrasen", -100),
-                Is.EqualTo(Loc.GetString("guild-exchange-halted")));
-            Assert.That(Exchange.NetPayout, Is.LessThanOrEqualTo(Exchange.Settings.ProfitPool));
-            Assert.That(account.Holdings["NanoTrasen"].Shares, Is.EqualTo(100), "a refused sale keeps the shares");
-        });
-    }
-
-    [Test]
     public async Task CargoTradesNeedCargoAccess()
     {
         var machine = await PoweredExchange();

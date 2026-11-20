@@ -56,7 +56,6 @@ public sealed partial class GuildExchangeWindow : FancyWindow
 
         MottoLabel.FontColorOverride = Dim;
         CompanyInfo.FontColorOverride = Dim;
-        HaltLabel.FontColorOverride = Down;
 
         PersonalButton.OnPressed += _ => OnSelectAccount?.Invoke(ExchangeAccountKind.Personal);
         CargoButton.OnPressed += _ => OnSelectAccount?.Invoke(ExchangeAccountKind.Cargo);
@@ -93,7 +92,6 @@ public sealed partial class GuildExchangeWindow : FancyWindow
 
         _tape = string.Join("   ", state.Companies.Select(c =>
             $"{c.Ticker} {c.Price:0.00} {(c.Price >= c.Open ? "▲" : "▼")}{Change(c.Price, c.Open)}")) + "   ";
-        HaltLabel.Visible = state.Halted;
 
         RebuildWatchlist();
         RefreshSelected();

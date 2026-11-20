@@ -85,14 +85,13 @@ public sealed class ExchangeNewsState(TimeSpan time, string? ticker, string text
 /// </summary>
 [Serializable, NetSerializable]
 public sealed class GuildExchangeBuiState(List<ExchangeCompanyState> companies, List<ExchangeNewsState> news,
-    List<string> trades, float fee, float spread, bool halted) : BoundUserInterfaceState
+    List<string> trades, float fee, float spread) : BoundUserInterfaceState
 {
     public List<ExchangeCompanyState> Companies = companies;
     public List<ExchangeNewsState> News = news;
     public List<string> Trades = trades;
     public float Fee = fee;
     public float Spread = spread;
-    public bool Halted = halted;
 }
 
 [Serializable, NetSerializable]

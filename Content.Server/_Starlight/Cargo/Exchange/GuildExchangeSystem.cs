@@ -246,7 +246,7 @@ public sealed partial class GuildExchangeSystem : EntitySystem
         }
 
         return new GuildExchangeBuiState(companies, new List<ExchangeNewsState>(_newsWire), new List<string>(_tradeLog),
-            _settings.Fee, _settings.Spread, Halted);
+            _settings.Fee, _settings.Spread);
     }
 
     private void RefreshAll()

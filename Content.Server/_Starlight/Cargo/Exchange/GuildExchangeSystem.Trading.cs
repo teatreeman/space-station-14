@@ -58,26 +58,12 @@ public sealed partial class GuildExchangeSystem
     private readonly Dictionary<EntityUid, ExchangeAccount> _accounts = new();
     private readonly Dictionary<EntityUid, ExchangeAccountKind> _selected = new();
     private readonly List<string> _tradeLog = new();
-    private int _paidIn;
-    private int _paidOut;
-
-    /// <summary>
-    /// Whether the Guild has stopped paying out because the round's profit pool is used up.
-    /// </summary>
-    public bool Halted => _paidOut - _paidIn >= _settings.ProfitPool;
-
-    /// <summary>
-    /// Spesos paid out beyond what was paid in this round.
-    /// </summary>
-    public int NetPayout => _paidOut - _paidIn;
 
     private void ResetAccounts()
     {
         _accounts.Clear();
         _selected.Clear();
         _tradeLog.Clear();
-        _paidIn = 0;
-        _paidOut = 0;
     }
 
     [SubscribeLocalEvent]
@@ -271,7 +257,6 @@ public sealed partial class GuildExchangeSystem
 
             account.Holdings[companyId] = (held.Shares + shares, held.Cost + money);
             account.Paid += money;
-            _paidIn += money;
             verb = "bought";
         }
         else
@@ -281,8 +266,6 @@ public sealed partial class GuildExchangeSystem
                 return Loc.GetString("guild-exchange-not-enough-shares");
 
             (money, newPrice) = ExchangeMath.Sell(company.Price, selling, proto.Liquidity, _settings.Spread, _settings.Fee);
-            if (_paidOut + money - _paidIn > _settings.ProfitPool)
-                return Loc.GetString("guild-exchange-halted");
 
             if (account.Cargo)
                 _cargo.UpdateBankAccount(station, money, ent.Comp.Account);
@@ -295,7 +278,6 @@ public sealed partial class GuildExchangeSystem
             else
                 account.Holdings[companyId] = (held.Shares - selling, costLeft);
             account.Received += money;
-            _paidOut += money;
             verb = "sold";
         }
 
@@ -404,10 +386,8 @@ public sealed partial class GuildExchangeSystem
                 if (!market.Companies.TryGetValue(companyId, out var company))
                     continue;
                 var (proceeds, newPrice) = ExchangeMath.Sell(company.Price, holding.Shares, company.Proto.Liquidity, _settings.Spread, _settings.Fee);
-                proceeds = Math.Clamp(_settings.ProfitPool - (_paidOut - _paidIn), 0, proceeds);
                 company.Price = newPrice;
                 total += proceeds;
-                _paidOut += proceeds;
             }
 
             account.Holdings.Clear();
