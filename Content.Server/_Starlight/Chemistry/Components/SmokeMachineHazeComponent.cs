@@ -19,12 +19,6 @@ public sealed partial class SmokeMachineHazeComponent : Component
     public int PuffId;
 
     /// <summary>
-    /// Most units of the carried mix this tile puts on its floor.
-    /// </summary>
-    [ViewVariables]
-    public FixedPoint2 FloorShare;
-
-    /// <summary>
     /// Whether this tile has reacted with its floor yet.
     /// </summary>
     [ViewVariables]

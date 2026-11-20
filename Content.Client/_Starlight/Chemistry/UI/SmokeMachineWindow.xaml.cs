@@ -41,7 +41,7 @@ public sealed partial class SmokeMachineWindow : FancyWindow
             for (var i = 1; i <= state.MaxSetting; i++)
             {
                 var setting = i;
-                var button = new Button { Text = setting.ToString(), ToggleMode = true, MinWidth = 40 };
+                var button = new Button { Text = SmokeMachinePuffs.Radius(setting).ToString(), ToggleMode = true, MinWidth = 40 };
                 button.OnPressed += _ => OnSetting?.Invoke(setting);
                 SettingButtons.AddChild(button);
             }

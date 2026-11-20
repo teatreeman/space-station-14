@@ -5,6 +5,29 @@ using Robust.Shared.Serialization;
 
 namespace Content.Shared._Starlight.Chemistry;
 
+/// <summary>
+/// Puff sizes for each smoke machine setting.
+/// </summary>
+public static class SmokeMachinePuffs
+{
+    /// <summary>
+    /// How many tiles out from the machine a puff at this setting reaches.
+    /// </summary>
+    public static int Radius(int setting)
+    {
+        return 3 * setting;
+    }
+
+    /// <summary>
+    /// How many tiles a puff at this setting covers: the diamond of that radius.
+    /// </summary>
+    public static int Tiles(int setting)
+    {
+        var radius = Radius(setting);
+        return 1 + 2 * radius * (radius + 1);
+    }
+}
+
 [Serializable, NetSerializable]
 public enum SmokeMachineUiKey : byte
 {

@@ -7,29 +7,38 @@ using Content.Server.Fluids.EntitySystems;
 using Content.Server.Power.EntitySystems;
 using Content.Server.Spreader;
 using Content.Shared._Starlight.Chemistry;
+using Content.Shared._Starlight.Construction;
+using Content.Shared.Chemistry;
 using Content.Shared.Chemistry.Components;
 using Content.Shared.Chemistry.EntitySystems;
+using Content.Shared.Chemistry.Reaction;
 using Content.Shared.Chemistry.Reagent;
 using Content.Shared.Construction;
 using Content.Shared.Construction.Components;
 using Content.Shared.Database;
+using Content.Shared.Examine;
 using Content.Shared.FixedPoint;
 using Content.Shared.Fluids;
+using Content.Shared.Mobs.Components;
 using Content.Shared.Popups;
 using Content.Shared.Power;
+using Content.Shared.Slippery;
 using Content.Shared.Smoking;
+using Content.Shared.Spreader;
+using Content.Shared.SubFloor;
 using Content.Shared.Wires;
 using Robust.Server.GameObjects;
+using Robust.Shared.Map;
 using Robust.Shared.Map.Components;
 using Robust.Shared.Prototypes;
-using Robust.Shared.Spawners;
 using Robust.Shared.Timing;
 
 namespace Content.Server._Starlight.Chemistry.EntitySystems;
 
 /// <summary>
 /// Runs the smoke machine: every couple of seconds, while switched on, powered and anchored, it lets out a puff of
-/// smoke carrying a copy of its tank's mix and loses a little of the tank for it.
+/// haze carrying a copy of its tank's mix and loses a little of the tank for it. The machine spreads each puff itself,
+/// a ring of tiles at a time, so a puff reaches its full size in about a second whatever other smoke is doing.
 /// </summary>
 public sealed partial class SmokeMachineSystem : EntitySystem
 {
@@ -38,36 +47,57 @@ public sealed partial class SmokeMachineSystem : EntitySystem
     [Dependency] private IGameTiming _timing = default!;
     [Dependency] private IPrototypeManager _proto = default!;
     [Dependency] private SharedAppearanceSystem _appearance = default!;
+    [Dependency] private EntityLookupSystem _lookup = default!;
     [Dependency] private SharedMapSystem _map = default!;
     [Dependency] private PowerReceiverSystem _power = default!;
     [Dependency] private SharedPopupSystem _popup = default!;
     [Dependency] private SharedPuddleSystem _puddle = default!;
+    [Dependency] private ReactiveSystem _reactive = default!;
     [Dependency] private SmokeSystem _smoke = default!;
     [Dependency] private SharedSolutionContainerSystem _solutions = default!;
+    [Dependency] private SpreaderSystem _spreader = default!;
     [Dependency] private TransformSystem _transform = default!;
     [Dependency] private UserInterfaceSystem _ui = default!;
 
-    /// <summary>
-    /// What each live puff may still put on floors, and how many of its haze tiles exist. Smoke can spread past its
-    /// tile count, so the per-tile share alone doesn't cap a puff; this does.
-    /// </summary>
-    private readonly Dictionary<int, PuffBudget> _puffs = new();
+    private static readonly ProtoId<EdgeSpreaderPrototype> SmokeSpreader = "Smoke";
 
+    /// <summary>
+    /// Time between rings of a spreading puff.
+    /// </summary>
+    private static readonly TimeSpan SpreadDelay = TimeSpan.FromSeconds(0.1);
+
+    /// <summary>
+    /// How often haze touches the things lying in it.
+    /// </summary>
+    private static readonly TimeSpan ExposeDelay = TimeSpan.FromSeconds(2);
+
+    /// <summary>
+    /// Share of a tile's mix each of those touches uses: two seconds of a twenty second haze.
+    /// </summary>
+    private const float ExposeShare = 0.1f;
+
+    private readonly Dictionary<int, Puff> _puffs = new();
+    private readonly HashSet<EntityUid> _onTile = new();
     private int _nextPuff = 1;
 
-    private sealed class PuffBudget(FixedPoint2 remaining)
-    {
-        public FixedPoint2 Remaining = remaining;
-        public int Tiles;
-    }
-
     /// <summary>
-    /// How many tiles a puff at this setting covers: a diamond of radius three tiles per setting step.
+    /// One puff: its haze tiles, how far it still has to spread, and what its floors may still be wetted with.
     /// </summary>
-    public static int PuffTiles(int setting)
+    private sealed class Puff(int id, EntProtoId haze, Solution carried, int target, float duration, FixedPoint2 floorBudget, TimeSpan end)
     {
-        var radius = 3 * setting;
-        return 1 + 2 * radius * (radius + 1);
+        public readonly int Id = id;
+        public readonly EntProtoId Haze = haze;
+        public readonly Solution Carried = carried;
+        public readonly int Target = target;
+        public readonly float Duration = duration;
+        public readonly TimeSpan End = end;
+        public readonly FixedPoint2 FloorShare = FixedPoint2.FromCents(floorBudget.Value / target);
+        public FixedPoint2 FloorBudget = floorBudget;
+        public readonly HashSet<EntityUid> Tiles = new();
+        public List<EntityUid> Frontier = new();
+        public int Spawned;
+        public TimeSpan NextSpread;
+        public TimeSpan NextExpose;
     }
 
     /// <summary>
@@ -78,7 +108,7 @@ public sealed partial class SmokeMachineSystem : EntitySystem
         if (!Resolve(ent, ref ent.Comp))
             return FixedPoint2.Zero;
 
-        return FixedPoint2.New(PuffTiles(ent.Comp.Setting) / ent.Comp.Efficiency);
+        return FixedPoint2.New(SmokeMachinePuffs.Tiles(ent.Comp.Setting) / ent.Comp.Efficiency);
     }
 
     public override void Update(float frameTime)
@@ -88,6 +118,15 @@ public sealed partial class SmokeMachineSystem : EntitySystem
         ReactHazeFloors();
 
         var now = _timing.CurTime;
+        foreach (var puff in _puffs.Values.ToArray())
+        {
+            if (puff.Frontier.Count > 0 && now >= puff.NextSpread)
+                SpreadRing(puff, now);
+
+            if (now >= puff.NextExpose)
+                ExposeItems(puff);
+        }
+
         var query = EntityQueryEnumerator<SmokeMachineComponent>();
         while (query.MoveNext(out var uid, out var comp))
         {
@@ -124,27 +163,30 @@ public sealed partial class SmokeMachineSystem : EntitySystem
             return false;
         }
 
+        // Foam is smoke you slip on; only real smoke holds the next puff back.
         var tile = _map.TileIndicesFor(gridUid, grid, xform.Coordinates);
         foreach (var anchored in _map.GetAnchoredEntities(gridUid, grid, tile))
         {
-            if (HasComp<SmokeComponent>(anchored))
+            if (HasComp<SmokeComponent>(anchored) && !HasComp<SlipperyComponent>(anchored))
                 return false;
         }
 
-        var tiles = PuffTiles(ent.Comp.Setting);
         var carried = tank.Clone();
         if (carried.Volume > ent.Comp.PuffVolume)
             carried = carried.SplitSolution(ent.Comp.PuffVolume);
 
         var lost = _solutions.SplitSolution(soln.Value, TankLoss(ent)).Volume;
 
-        var smoke = Spawn(ent.Comp.SmokePrototype, _map.GridTileToLocal(gridUid, grid, tile));
-        var haze = EnsureComp<SmokeMachineHazeComponent>(smoke);
-        var puff = _nextPuff++;
-        _puffs[puff] = new PuffBudget(lost) { Tiles = 1 };
-        haze.PuffId = puff;
-        haze.FloorShare = FixedPoint2.FromCents(lost.Value / tiles);
-        StartHaze(smoke, carried, ent.Comp.SmokeDuration, tiles - 1);
+        var now = _timing.CurTime;
+        var id = _nextPuff++;
+        var puff = new Puff(id, ent.Comp.SmokePrototype, carried, SmokeMachinePuffs.Tiles(ent.Comp.Setting), ent.Comp.SmokeDuration, lost,
+            now + TimeSpan.FromSeconds(ent.Comp.SmokeDuration))
+        {
+            NextSpread = now + SpreadDelay,
+            NextExpose = now + ExposeDelay,
+        };
+        _puffs[id] = puff;
+        puff.Frontier.Add(SpawnHaze(puff, _map.GridTileToLocal(gridUid, grid, tile), now));
 
         if (tank.Volume <= 0)
             SetEnabled((ent, ent.Comp), false);
@@ -153,109 +195,150 @@ public sealed partial class SmokeMachineSystem : EntitySystem
     }
 
     /// <summary>
-    /// Starts a haze tile as ordinary smoke, but empty at first so the smoke system's one-off floor reaction has
-    /// nothing to put down; this system wets the floor itself, within the puff's budget.
+    /// Spawns one tile of a puff's haze. People standing in it get ordinary smoke, breathing and touching its mix over
+    /// the puff's whole lifetime. It starts empty so the smoke system's one-off floor reaction has nothing to put
+    /// down (this system wets the floor within the puff's budget), and it never spreads on its own.
     /// </summary>
-    private void StartHaze(EntityUid haze, Solution carried, float duration, int spreadAmount)
+    private EntityUid SpawnHaze(Puff puff, EntityCoordinates coords, TimeSpan now)
     {
-        _smoke.StartSmoke(haze, new Solution(), duration, spreadAmount);
-        if (!TryComp<SmokeComponent>(haze, out var smoke) ||
-            !_solutions.TryGetSolution(haze, SmokeComponent.SolutionName, out var soln, out _))
+        var uid = Spawn(puff.Haze, coords);
+        var haze = EnsureComp<SmokeMachineHazeComponent>(uid);
+        haze.PuffId = puff.Id;
+        puff.Tiles.Add(uid);
+        puff.Spawned++;
+
+        // The whole puff clears together, like the tiles it spread from.
+        _smoke.StartSmoke(uid, new Solution(), (float) (puff.End - now).TotalSeconds, 0);
+        RemComp<ActiveEdgeSpreaderComponent>(uid);
+
+        if (TryComp<SmokeComponent>(uid, out var smoke) &&
+            _solutions.TryGetSolution(uid, SmokeComponent.SolutionName, out var soln, out _))
         {
-            return;
+            smoke.TransferRate = puff.Carried.Volume / puff.Duration;
+            _solutions.TryAddSolution(soln.Value, puff.Carried.Clone());
+            _appearance.SetData(uid, SmokeVisuals.Color, puff.Carried.GetColor(_proto));
         }
 
-        smoke.TransferRate = carried.Volume / duration;
-        _solutions.TryAddSolution(soln.Value, carried);
-        _appearance.SetData(haze, SmokeVisuals.Color, carried.GetColor(_proto));
+        return uid;
     }
 
     /// <summary>
-    /// Spreads haze the same way the smoke system spreads smoke, starting each new tile through
-    /// <see cref="StartHaze"/>, then leaves the smoke system no free tiles to spread to itself.
+    /// Spreads a puff one ring further, onto open tiles next to its outer edge that don't have smoke yet, until it
+    /// covers its size.
     /// </summary>
-    [SubscribeLocalEvent(before: [typeof(SmokeSystem)])]
-    private void OnHazeSpread(Entity<SmokeMachineHazeComponent> ent, ref SpreadNeighborsEvent args)
+    private void SpreadRing(Puff puff, TimeSpan now)
     {
-        if (!TryComp<SmokeComponent>(ent, out var smoke) ||
-            smoke.SpreadAmount == 0 ||
-            args.NeighborFreeTiles.Count == 0 ||
-            Prototype(ent) is not { } prototype ||
-            !_solutions.TryGetSolution(ent.Owner, SmokeComponent.SolutionName, out _, out var carried))
+        puff.NextSpread = now + SpreadDelay;
+        var ring = new List<EntityUid>();
+        var claimed = new HashSet<(EntityUid, Vector2i)>();
+        foreach (var edge in puff.Frontier)
         {
-            return;
-        }
-
-        var duration = CompOrNull<TimedDespawnComponent>(ent)?.Lifetime ?? smoke.Duration;
-        var perSpread = Math.Max(0, smoke.SpreadAmount / args.NeighborFreeTiles.Count);
-        foreach (var neighbor in args.NeighborFreeTiles)
-        {
-            var coords = _map.GridTileToLocal(neighbor.Tile.GridUid, neighbor.Grid, neighbor.Tile.GridIndices);
-            var child = Spawn(prototype.ID, coords);
-            JoinPuff((child, EnsureComp<SmokeMachineHazeComponent>(child)), ent);
-            smoke.SpreadAmount -= args.NeighborFreeTiles.Count;
-            StartHaze(child, carried.Clone(), duration, perSpread);
-
-            if (smoke.SpreadAmount == 0)
+            if (puff.Spawned >= puff.Target)
                 break;
+
+            if (TerminatingOrDeleted(edge))
+                continue;
+
+            _spreader.GetNeighbors(edge, Transform(edge), SmokeSpreader, out var free, out _, out _);
+            foreach (var (grid, tile) in free)
+            {
+                if (puff.Spawned >= puff.Target)
+                    break;
+
+                if (claimed.Add((tile.GridUid, tile.GridIndices)))
+                    ring.Add(SpawnHaze(puff, _map.GridTileToLocal(tile.GridUid, grid, tile.GridIndices), now));
+            }
         }
 
-        args.Updates--;
-        args.NeighborFreeTiles.Clear();
+        puff.Frontier = puff.Spawned >= puff.Target ? new List<EntityUid>() : ring;
     }
 
     /// <summary>
-    /// Makes a haze tile part of another tile's puff: same floor share, same floor budget.
+    /// Every couple of seconds each haze tile touches the loose things in it (not people, not what's under the floor)
+    /// with a share of its mix.
+    /// </summary>
+    private void ExposeItems(Puff puff)
+    {
+        puff.NextExpose += ExposeDelay;
+        var dose = puff.Carried.Clone().SplitSolution(puff.Carried.Volume * ExposeShare);
+        foreach (var haze in puff.Tiles.ToArray())
+        {
+            var xform = Transform(haze);
+            if (xform.GridUid is not { } gridUid || !TryComp<MapGridComponent>(gridUid, out var grid))
+                continue;
+
+            _onTile.Clear();
+            _lookup.GetLocalEntitiesIntersecting(gridUid, _map.TileIndicesFor(gridUid, grid, xform.Coordinates), _onTile,
+                flags: LookupFlags.Uncontained, gridComp: grid);
+            foreach (var thing in _onTile)
+            {
+                if (!HasComp<ReactiveComponent>(thing) ||
+                    HasComp<MobStateComponent>(thing) ||
+                    HasComp<SmokeComponent>(thing) ||
+                    TryComp<SubFloorHideComponent>(thing, out var subfloor) && subfloor.IsUnderCover)
+                {
+                    continue;
+                }
+
+                foreach (var reagent in dose.Contents)
+                {
+                    _reactive.ReactionEntity(thing, ReactionMethod.Touch, reagent);
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Makes a haze tile part of another tile's puff, sharing its floor budget.
     /// </summary>
     public void JoinPuff(Entity<SmokeMachineHazeComponent> tile, Entity<SmokeMachineHazeComponent> from)
     {
         if (_puffs.TryGetValue(tile.Comp.PuffId, out var old))
-            old.Tiles--;
+            old.Tiles.Remove(tile);
 
         tile.Comp.PuffId = from.Comp.PuffId;
-        tile.Comp.FloorShare = from.Comp.FloorShare;
-        if (_puffs.TryGetValue(tile.Comp.PuffId, out var budget))
-            budget.Tiles++;
+        if (_puffs.TryGetValue(tile.Comp.PuffId, out var puff))
+            puff.Tiles.Add(tile);
     }
 
     [SubscribeLocalEvent]
     private void OnHazeShutdown(Entity<SmokeMachineHazeComponent> ent, ref ComponentShutdown args)
     {
-        if (!_puffs.TryGetValue(ent.Comp.PuffId, out var budget))
+        if (!_puffs.TryGetValue(ent.Comp.PuffId, out var puff))
             return;
 
-        budget.Tiles--;
-        if (budget.Tiles <= 0)
+        puff.Tiles.Remove(ent);
+        puff.Frontier.Remove(ent);
+        if (puff.Tiles.Count == 0)
             _puffs.Remove(ent.Comp.PuffId);
     }
 
     /// <summary>
-    /// Wets each new haze tile's floor with its share of the carried mix.
+    /// Wets each new haze tile's floor with its share of the puff's mix, while the puff's floor budget lasts.
     /// </summary>
     private void ReactHazeFloors()
     {
-        var query = EntityQueryEnumerator<SmokeMachineHazeComponent, SmokeComponent, TransformComponent>();
-        while (query.MoveNext(out var uid, out var haze, out var smoke, out var xform))
+        var query = EntityQueryEnumerator<SmokeMachineHazeComponent, TransformComponent>();
+        while (query.MoveNext(out var uid, out var haze, out var xform))
         {
             if (haze.FloorDone)
                 continue;
 
             haze.FloorDone = true;
-            if (!_puffs.TryGetValue(haze.PuffId, out var budget) ||
+            if (!_puffs.TryGetValue(haze.PuffId, out var puff) ||
                 xform.GridUid is not { } gridUid ||
-                !TryComp<MapGridComponent>(gridUid, out var grid) ||
-                !_solutions.ResolveSolution(uid, SmokeComponent.SolutionName, ref smoke.Solution, out var carried))
+                !TryComp<MapGridComponent>(gridUid, out var grid))
             {
                 continue;
             }
 
-            var share = FixedPoint2.Min(FixedPoint2.Min(haze.FloorShare, budget.Remaining), carried.Volume);
+            var share = FixedPoint2.Min(FixedPoint2.Min(puff.FloorShare, puff.FloorBudget), puff.Carried.Volume);
             if (share <= 0)
                 continue;
 
-            budget.Remaining -= share;
+            puff.FloorBudget -= share;
             haze.FloorReacted = share;
-            var floor = carried.Clone().SplitSolution(share);
+            var floor = puff.Carried.Clone().SplitSolution(share);
             var tile = _map.GetTileRef(gridUid, grid, xform.Coordinates);
             foreach (var (reagent, quantity) in floor.Contents.ToArray())
             {
@@ -313,6 +396,12 @@ public sealed partial class SmokeMachineSystem : EntitySystem
         ent.Comp.Setting = Math.Clamp(ent.Comp.Setting, 1, ent.Comp.MaxSetting);
         UpdateLoad(ent);
         _appearance.SetData(ent, SmokeMachineVisuals.Running, ent.Comp.Enabled);
+    }
+
+    [SubscribeLocalEvent]
+    private void OnExamined(Entity<SmokeMachineComponent> ent, ref ExaminedEvent args)
+    {
+        args.PushMarkup(Loc.GetString("smoke-machine-examine-plumbing", ("kinds", ent.Comp.MaxReagentKinds)));
     }
 
     [SubscribeLocalEvent]
@@ -433,12 +522,22 @@ public sealed partial class SmokeMachineSystem : EntitySystem
     [SubscribeLocalEvent]
     private void OnPanelAttempt(Entity<SmokeMachineComponent> ent, ref AttemptChangePanelEvent args)
     {
-        if (!ent.Comp.Enabled || args.Cancelled || !args.Open)
+        if (!ent.Comp.Enabled || args.Cancelled)
             return;
 
         args.Cancelled = true;
         if (args.User is { } user)
             _popup.PopupEntity(Loc.GetString("smoke-machine-switch-off-first"), ent, user);
+    }
+
+    [SubscribeLocalEvent]
+    private void OnConstructionAttempt(Entity<SmokeMachineComponent> ent, ref ConstructionInteractAttemptEvent args)
+    {
+        if (!ent.Comp.Enabled || args.Canceled)
+            return;
+
+        args.Canceled = true;
+        _popup.PopupEntity(Loc.GetString("smoke-machine-switch-off-first"), ent, args.User);
     }
 
     [SubscribeLocalEvent]

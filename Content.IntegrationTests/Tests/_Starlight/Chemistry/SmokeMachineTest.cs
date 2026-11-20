@@ -11,6 +11,12 @@ using Content.Shared.Chemistry.EntitySystems;
 using Content.Shared.FixedPoint;
 using Content.Shared.Fluids;
 using Content.Shared.Fluids.Components;
+using Content.Shared.Maps;
+using Content.Shared.Wires;
+using Content.Shared._Starlight.Construction;
+using Robust.Shared.Map;
+using Robust.Shared.Map.Components;
+using Robust.Shared.Maths;
 using NUnit.Framework;
 using Robust.Server.GameObjects;
 using Robust.Shared.GameObjects;
@@ -67,12 +73,113 @@ public sealed class SmokeMachineTest : InteractionTest
         return count;
     }
 
+    /// <summary>
+    /// Lays an open floor around the machine, wide enough for the biggest puff.
+    /// </summary>
+    private async Task OpenFloor()
+    {
+        await Server.WaitPost(() =>
+        {
+            var map = SEntMan.System<SharedMapSystem>();
+            var xform = SEntMan.GetComponent<TransformComponent>(STarget!.Value);
+            var gridUid = xform.GridUid!.Value;
+            var grid = SEntMan.GetComponent<MapGridComponent>(gridUid);
+            var center = map.TileIndicesFor(gridUid, grid, xform.Coordinates);
+            var plating = new Tile(Server.ResolveDependency<ITileDefinitionManager>()["Plating"].TileId);
+            for (var x = -12; x <= 12; x++)
+            {
+                for (var y = -12; y <= 12; y++)
+                {
+                    map.SetTile(gridUid, grid, center + new Vector2i(x, y), plating);
+                }
+            }
+        });
+    }
+
+    private async Task ClearHaze()
+    {
+        await Server.WaitPost(() =>
+        {
+            var query = SEntMan.EntityQueryEnumerator<SmokeMachineHazeComponent>();
+            while (query.MoveNext(out var uid, out _))
+            {
+                SEntMan.DeleteEntity(uid);
+            }
+        });
+    }
+
+    /// <summary>
+    /// On open floor a puff covers exactly its diamond, spreading a ring every tenth of a second, so even the biggest
+    /// one is done within a second and a half.
+    /// </summary>
+    [TestCase(1)]
+    [TestCase(2)]
+    [TestCase(3)]
+    public async Task PuffFillsItsDiamondQuickly(int setting)
+    {
+        await Placed();
+        await OpenFloor();
+        await Server.WaitAssertion(() =>
+        {
+            Fill("Water", 100);
+            Machine.SetSetting(STarget!.Value, setting);
+            Assert.That(Machine.TryPuff(STarget.Value));
+        });
+
+        await RunSeconds(0.5f);
+        var halfway = 0;
+        await Server.WaitPost(() => halfway = HazeCount());
+
+        await RunSeconds(1f);
+        await Server.WaitAssertion(() =>
+        {
+            Assert.That(halfway, Is.GreaterThan(1), "it was spreading after half a second");
+            Assert.That(HazeCount(), Is.EqualTo(SmokeMachinePuffs.Tiles(setting)), "the whole diamond after a second and a half");
+        });
+
+        await RunSeconds(2f);
+        await Server.WaitAssertion(() =>
+            Assert.That(HazeCount(), Is.EqualTo(SmokeMachinePuffs.Tiles(setting)), "and no further"));
+        await ClearHaze();
+    }
+
+    [Test]
+    public async Task HazeTouchesThingsLyingInIt()
+    {
+        await Placed();
+        EntityUid cube = default;
+        await Server.WaitAssertion(() =>
+        {
+            cube = SEntMan.SpawnAtPosition("MonkeyCube", SEntMan.GetComponent<TransformComponent>(STarget!.Value).Coordinates);
+            Fill("Water", 100);
+            Assert.That(Machine.TryPuff(STarget.Value));
+        });
+
+        await RunSeconds(1f);
+        await Server.WaitAssertion(() => Assert.That(SEntMan.EntityExists(cube), "not touched before the first two seconds"));
+
+        await RunSeconds(2f);
+        await Server.WaitAssertion(() => Assert.That(SEntMan.EntityExists(cube), Is.False, "the haze's water got to the cube"));
+    }
+
+    [Test]
+    public async Task FoamDoesNotHoldBackAPuff()
+    {
+        await Placed();
+        await Server.WaitAssertion(() =>
+        {
+            SEntMan.SpawnAtPosition("Foam", SEntMan.GetComponent<TransformComponent>(STarget!.Value).Coordinates);
+            Fill("Water", 100);
+            Assert.That(Machine.TryPuff(STarget.Value), "foam on its tile isn't smoke");
+        });
+    }
+
     [Test]
     public void PuffSizes()
     {
-        Assert.That(SmokeMachineSystem.PuffTiles(1), Is.EqualTo(25));
-        Assert.That(SmokeMachineSystem.PuffTiles(2), Is.EqualTo(85));
-        Assert.That(SmokeMachineSystem.PuffTiles(3), Is.EqualTo(181));
+        Assert.That(SmokeMachinePuffs.Tiles(1), Is.EqualTo(25));
+        Assert.That(SmokeMachinePuffs.Tiles(2), Is.EqualTo(85));
+        Assert.That(SmokeMachinePuffs.Tiles(3), Is.EqualTo(181));
     }
 
     [Test]
@@ -173,7 +280,7 @@ public sealed class SmokeMachineTest : InteractionTest
                 reacted += haze.FloorReacted;
             }
 
-            Assert.That(HazeCount(), Is.GreaterThan(SmokeMachineSystem.PuffTiles(1)), "more tiles than the puff is meant to cover");
+            Assert.That(HazeCount(), Is.GreaterThan(SmokeMachinePuffs.Tiles(1)), "more tiles than the puff is meant to cover");
             Assert.That(reacted, Is.GreaterThan(FixedPoint2.Zero), "the floors were wetted");
             Assert.That(reacted, Is.LessThanOrEqualTo(lost), "all the puff's floors together got no more than the tank lost");
         });
@@ -245,6 +352,18 @@ public sealed class SmokeMachineTest : InteractionTest
         {
             Assert.That(SEntMan.GetComponent<SmokeMachineComponent>(STarget!.Value).Enabled, "it runs with reagents in");
             Assert.That(Tank().Volume, Is.LessThan(FixedPoint2.New(50)), "running uses the tank");
+        });
+
+        await Server.WaitAssertion(() =>
+        {
+            var panel = SEntMan.GetComponent<WiresPanelComponent>(STarget!.Value);
+            var ev = new AttemptChangePanelEvent(!panel.Open, SPlayer);
+            SEntMan.EventBus.RaiseLocalEvent(STarget.Value, ref ev);
+            Assert.That(ev.Cancelled, "no opening or closing the panel while it runs");
+
+            var deconstruct = new ConstructionInteractAttemptEvent(SPlayer, STarget.Value);
+            SEntMan.EventBus.RaiseLocalEvent(STarget.Value, ref deconstruct);
+            Assert.That(deconstruct.Canceled, "no taking it apart while it runs");
         });
 
         await Server.WaitPost(() => SEntMan.System<TransformSystem>().Unanchor(STarget!.Value, SEntMan.GetComponent<TransformComponent>(STarget.Value)));
