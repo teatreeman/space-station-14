@@ -1,4 +1,5 @@
 using Content.Server._Starlight.Chemistry.Components;
+using Content.Server._Starlight.Chemistry.Events;
 using Content.Server._Starlight.Plumbing;
 using Content.Server.Administration.Logs;
 using Content.Server.Chat.Managers;
@@ -6,13 +7,17 @@ using Content.Server.Fluids.EntitySystems;
 using Content.Server.Power.EntitySystems;
 using Content.Shared._Starlight.Chemistry;
 using Content.Shared._Starlight.Construction;
+using Content.Shared.Atmos.Components;
+using Content.Shared._Starlight.Medical.Body.Systems;
 using Content.Shared.Chemistry.Components;
+using Content.Shared.Clothing.Components;
 using Content.Shared.Chemistry.EntitySystems;
 using Content.Shared.Construction;
 using Content.Shared.Construction.Components;
 using Content.Shared.Database;
 using Content.Shared.Examine;
 using Content.Shared.FixedPoint;
+using Content.Shared.Inventory;
 using Content.Shared.Fluids;
 using Content.Shared.Popups;
 using Content.Shared.Power;
@@ -33,6 +38,8 @@ public sealed partial class SmokeMachineSystem : EntitySystem
     [Dependency] private IAdminLogManager _adminLog = default!;
     [Dependency] private IChatManager _chat = default!;
     [Dependency] private IGameTiming _timing = default!;
+    [Dependency] private SharedInternalsSystem _internals = default!;
+    [Dependency] private InventorySystem _inventory = default!;
     [Dependency] private SharedAppearanceSystem _appearance = default!;
     [Dependency] private SharedMapSystem _map = default!;
     [Dependency] private PowerReceiverSystem _power = default!;
@@ -167,6 +174,37 @@ public sealed partial class SmokeMachineSystem : EntitySystem
         ent.Comp.Setting = Math.Clamp(ent.Comp.Setting, 1, ent.Comp.MaxSetting);
         UpdateLoad(ent);
         _appearance.SetData(ent, SmokeMachineVisuals.Running, ent.Comp.Enabled);
+    }
+
+    /// <summary>
+    /// Like on tg, a gas-tight mask or working internals keeps the haze off someone entirely, touch included.
+    /// </summary>
+    [SubscribeLocalEvent]
+    private void OnHazeReach(Entity<SmokeMachineHazeComponent> ent, ref SmokeReactAttemptEvent args)
+    {
+        if (_internals.AreInternalsWorking(args.Target) || HasGasTightMask(args.Target))
+            args.Cancelled = true;
+    }
+
+    /// <summary>
+    /// Whether they wear something over their face that seals it from the air, and haven't pulled it down.
+    /// </summary>
+    private bool HasGasTightMask(EntityUid uid)
+    {
+        if (!_inventory.TryGetContainerSlotEnumerator(uid, out var slots, SlotFlags.MASK | SlotFlags.HEAD))
+            return false;
+
+        while (slots.NextItem(out var item, out var slot))
+        {
+            if (TryComp<BreathToolComponent>(item, out var tool) &&
+                (tool.AllowedSlots & slot.SlotFlags) != 0 &&
+                !(TryComp<MaskComponent>(item, out var mask) && mask.IsToggled))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     [SubscribeLocalEvent]

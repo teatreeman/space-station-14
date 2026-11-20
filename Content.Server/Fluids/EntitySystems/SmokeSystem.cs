@@ -262,6 +262,7 @@ public sealed partial class SmokeSystem : EntitySystem
     {
         if (!Resolve(smokeUid, ref component))
             return;
+        if (SkipsTarget(entity, smokeUid)) return; // Starlight
 
         if (!TryComp<BloodstreamComponent>(entity, out var bloodstream))
             return;
@@ -310,7 +311,7 @@ public sealed partial class SmokeSystem : EntitySystem
         if (!TryComp<MapGridComponent>(xform.GridUid, out var mapGrid))
             return;
 
-        if (TryComp<Content.Server._Starlight.Chemistry.Components.SmokeMachineHazeComponent>(uid, out var haze)) solution = solution.Clone().SplitSolution(haze.FloorShare); // Starlight: smoke machine haze only wets floors with its share of what left the tank
+        if (HasComp<Content.Server._Starlight.Chemistry.Components.SmokeMachineHazeComponent>(uid)) return; // Starlight: smoke machine haze is only breathed and touched, it never wets floors
         var tile = _map.GetTileRef(xform.GridUid.Value, mapGrid, xform.Coordinates);
 
         foreach (var reagentQuantity in solution.Contents.ToArray())

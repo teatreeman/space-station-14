@@ -73,7 +73,7 @@ public sealed partial class SmokeMachineComponent : Component
     public TimeSpan NextPuff;
 
     /// <summary>
-    /// The smoke a puff is made of. It should have <see cref="SmokeMachineHazeComponent"/> so it doesn't flood floors.
+    /// The smoke a puff is made of. It should have <see cref="SmokeMachineHazeComponent"/>, which keeps it off floors and out of masks.
     /// </summary>
     [DataField]
     public EntProtoId SmokePrototype = "SmokeMachineHaze";

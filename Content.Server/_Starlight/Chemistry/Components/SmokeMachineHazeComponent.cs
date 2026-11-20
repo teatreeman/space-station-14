@@ -1,18 +1,8 @@
-using Content.Shared.FixedPoint;
-
 namespace Content.Server._Starlight.Chemistry.Components;
 
 /// <summary>
-/// Marks a smoke machine's haze. People in it breathe and touch the whole carried mix like any smoke, but the floor
-/// under each tile only gets <see cref="FloorShare"/> of it, so a puff leaves no more puddle than its tank lost.
+/// Marks a smoke machine's haze. It doses people through the air like other chemical smoke, but never reacts with the
+/// floor, and people with a gas-tight mask or working internals are left alone entirely.
 /// </summary>
 [RegisterComponent]
-public sealed partial class SmokeMachineHazeComponent : Component
-{
-    /// <summary>
-    /// Units of the carried mix each tile puts on its floor. A puff costs the tank 1u per 20 tiles; this is a bit under
-    /// that, so a puff that spreads a little past its size still wets no more than the tank lost.
-    /// </summary>
-    [DataField]
-    public FixedPoint2 FloorShare = 0.04;
-}
+public sealed partial class SmokeMachineHazeComponent : Component;
