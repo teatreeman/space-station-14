@@ -1,0 +1,22 @@
+<controls:FancyWindow xmlns="https://spacestation14.io"
+                      xmlns:controls="clr-namespace:Content.Client.UserInterface.Controls"
+                      MinSize="300 280"
+                      SetSize="300 320">
+    <BoxContainer Orientation="Vertical" Margin="10" SeparationOverride="8">
+        <BoxContainer Orientation="Horizontal" SeparationOverride="6">
+            <Button Name="ToggleButton" ToggleMode="True" HorizontalExpand="True" />
+            <controls:ConfirmButton Name="PurgeButton" Text="{Loc 'smoke-machine-window-purge'}"
+                                    ConfirmationText="{Loc 'smoke-machine-window-purge-confirm'}" />
+        </BoxContainer>
+        <Label Text="{Loc 'smoke-machine-window-setting'}" />
+        <BoxContainer Name="SettingButtons" Orientation="Horizontal" SeparationOverride="2" />
+        <PanelContainer StyleClasses="InsetPanel" VerticalExpand="True">
+            <BoxContainer Orientation="Vertical" Margin="8 6">
+                <Label Name="TankLabel" />
+                <ScrollContainer HScrollEnabled="False" VerticalExpand="True">
+                    <BoxContainer Name="TankContents" Orientation="Vertical" />
+                </ScrollContainer>
+            </BoxContainer>
+        </PanelContainer>
+    </BoxContainer>
+</controls:FancyWindow>

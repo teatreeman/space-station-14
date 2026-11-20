@@ -306,6 +306,7 @@
   recipeUnlocks:
   - BluespaceBeaker
   - SyringeBluespace
+  - SmokeMachineMachineCircuitboard
   technologyPrerequisites:
   - BluespaceManipulation
   radioChannels:

@@ -1,0 +1,13 @@
+smoke-machine-empty = The tank is dry; there's nothing to turn into smoke.
+smoke-machine-unanchored = It has to be bolted down first.
+smoke-machine-unpowered = It has no power.
+smoke-machine-switch-off-first = Switch it off first.
+smoke-machine-admin-alert = {$user} started {$machine} with {$contents} in its tank.
+smoke-machine-window-turn-on = Switch on
+smoke-machine-window-turn-off = Switch off
+smoke-machine-window-purge = Purge tank
+smoke-machine-window-purge-confirm = Really empty it?
+smoke-machine-window-setting = Puff size
+smoke-machine-window-tank = Tank: {$volume} / {$max}u
+smoke-machine-window-tank-empty = The tank is empty.
+smoke-machine-window-reagent = {$reagent}: {$quantity}u

@@ -1568,3 +1568,18 @@
       Igniter:
         amount: 1
         defaultPrototype: Igniter
+
+- type: entity
+  id: SmokeMachineMachineCircuitboard
+  parent: BaseMachineCircuitboard
+  name: smoke machine machine board
+  description: A machine printed circuit board for a smoke machine.
+  components:
+  - type: Sprite
+    state: medical
+  - type: MachineBoard
+    prototype: SmokeMachine
+    stackRequirements:
+      Manipulator: 2
+      Glass: 1
+      Steel: 2
