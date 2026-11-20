@@ -1,0 +1,131 @@
+# The companies listed on the Guild Exchange. Names, sectors and allegiances follow Starlight's lore.
+
+- type: exchangeCompany
+  id: NanoTrasen
+  ticker: NT
+  name: guild-exchange-company-nt
+  description: guild-exchange-company-nt-desc
+  sector: guild-exchange-sector-conglomerate
+  price: 120
+  volatility: 0.008
+  liquidity: 800
+  newsShock: 0.05
+  goodNews:
+  - guild-exchange-news-nt-good-1
+  - guild-exchange-news-nt-good-2
+  badNews:
+  - guild-exchange-news-nt-bad-1
+  - guild-exchange-news-nt-bad-2
+
+- type: exchangeCompany
+  id: Cybersun
+  ticker: CYBS
+  name: guild-exchange-company-cybs
+  description: guild-exchange-company-cybs-desc
+  sector: guild-exchange-sector-cybernetics
+  price: 85
+  volatility: 0.018
+  goodNews:
+  - guild-exchange-news-cybs-good-1
+  - guild-exchange-news-cybs-good-2
+  badNews:
+  - guild-exchange-news-cybs-bad-1
+  - guild-exchange-news-cybs-bad-2
+
+- type: exchangeCompany
+  id: DonkCo
+  ticker: DONK
+  name: guild-exchange-company-donk
+  description: guild-exchange-company-donk-desc
+  sector: guild-exchange-sector-food
+  price: 35
+  volatility: 0.02
+  liquidity: 400
+  goodNews:
+  - guild-exchange-news-donk-good-1
+  - guild-exchange-news-donk-good-2
+  badNews:
+  - guild-exchange-news-donk-bad-1
+  - guild-exchange-news-donk-bad-2
+
+- type: exchangeCompany
+  id: Interdyne
+  ticker: INTD
+  name: guild-exchange-company-intd
+  description: guild-exchange-company-intd-desc
+  sector: guild-exchange-sector-pharma
+  price: 70
+  volatility: 0.018
+  goodNews:
+  - guild-exchange-news-intd-good-1
+  - guild-exchange-news-intd-good-2
+  badNews:
+  - guild-exchange-news-intd-bad-1
+  - guild-exchange-news-intd-bad-2
+
+- type: exchangeCompany
+  id: VioletSky
+  ticker: VSKY
+  name: guild-exchange-company-vsky
+  description: guild-exchange-company-vsky-desc
+  sector: guild-exchange-sector-plasma
+  price: 6
+  volatility: 0.06
+  liquidity: 150
+  newsShock: 0.15
+  goodNews:
+  - guild-exchange-news-vsky-good-1
+  - guild-exchange-news-vsky-good-2
+  badNews:
+  - guild-exchange-news-vsky-bad-1
+  - guild-exchange-news-vsky-bad-2
+
+- type: exchangeCompany
+  id: MedTak
+  ticker: MTAK
+  name: guild-exchange-company-mtak
+  description: guild-exchange-company-mtak-desc
+  sector: guild-exchange-sector-medical
+  price: 55
+  volatility: 0.012
+  liquidity: 600
+  newsShock: 0.06
+  goodNews:
+  - guild-exchange-news-mtak-good-1
+  - guild-exchange-news-mtak-good-2
+  badNews:
+  - guild-exchange-news-mtak-bad-1
+  - guild-exchange-news-mtak-bad-2
+
+- type: exchangeCompany
+  id: Vulcan
+  ticker: VULC
+  name: guild-exchange-company-vulc
+  description: guild-exchange-company-vulc-desc
+  sector: guild-exchange-sector-mining
+  price: 60
+  volatility: 0.015
+  newsShock: 0.07
+  goodNews:
+  - guild-exchange-news-vulc-good-1
+  - guild-exchange-news-vulc-good-2
+  badNews:
+  - guild-exchange-news-vulc-bad-1
+  - guild-exchange-news-vulc-bad-2
+
+- type: exchangeCompany
+  id: WaffleCo
+  ticker: WAFL
+  name: guild-exchange-company-wafl
+  description: guild-exchange-company-wafl-desc
+  sector: guild-exchange-sector-weapons
+  price: 45
+  volatility: 0.035
+  liquidity: 300
+  newsShock: 0.12
+  goodNews:
+  - guild-exchange-news-wafl-good-1
+  - guild-exchange-news-wafl-good-2
+  badNews:
+  - guild-exchange-news-wafl-bad-1
+  - guild-exchange-news-wafl-bad-2

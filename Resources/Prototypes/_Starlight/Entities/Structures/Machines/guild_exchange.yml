@@ -1,0 +1,35 @@
+- type: entity
+  parent: BaseComputer
+  id: GuildExchangeTerminal
+  name: Guild Exchange terminal
+  description: A trading terminal wired into the Interstellar Trade Guild's exchange. In profit we trust.
+  components:
+  - type: Computer
+    board: GuildExchangeComputerCircuitboard
+  - type: Sprite
+    layers:
+    - map: ["computerLayerBody"]
+      state: computer
+    - map: ["computerLayerKeyboard"]
+      state: generic_keyboard
+    - map: ["computerLayerScreen"]
+      sprite: _Starlight/Structures/Machines/guild_exchange.rsi
+      state: vault
+    - map: ["computerLayerKeys"]
+      state: generic_keys
+    - map: [ "enum.WiresVisualLayers.MaintenancePanel" ]
+      state: generic_panel_open
+  - type: GuildExchange
+  # Cargo staff can trade part of the budget; the quartermaster can unlock the rest (GuildExchange.fullBudgetAccess).
+  - type: AccessReader
+    access: [ [ "Cargo" ] ]
+  - type: ActivatableUI
+    key: enum.GuildExchangeUiKey.Key
+  - type: UserInterface
+    interfaces:
+      enum.GuildExchangeUiKey.Key:
+        type: GuildExchangeBoundUserInterface
+  - type: PointLight
+    radius: 1.5
+    energy: 1.6
+    color: "#ffb000"

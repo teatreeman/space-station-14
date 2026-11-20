@@ -207,3 +207,14 @@
     state: cpu_science
   - type: ComputerBoard
     prototype: RemoteControlConsole
+
+- type: entity
+  parent: BaseComputerCircuitboard
+  id: GuildExchangeComputerCircuitboard
+  name: Guild Exchange terminal board
+  description: A computer printed circuit board for a Guild Exchange terminal.
+  components:
+  - type: Sprite
+    state: cpu_supply
+  - type: ComputerBoard
+    prototype: GuildExchangeTerminal

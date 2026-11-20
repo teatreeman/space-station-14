@@ -1,0 +1,55 @@
+<controls:FancyWindow xmlns="https://spacestation14.io"
+                      xmlns:controls="clr-namespace:Content.Client.UserInterface.Controls"
+                      xmlns:exchange="clr-namespace:Content.Client._Starlight.Cargo.Exchange"
+                      Title="{Loc 'guild-exchange-window-title'}"
+                      MinSize="900 560"
+                      SetSize="1000 640">
+    <PanelContainer Name="Background" HorizontalExpand="True" VerticalExpand="True">
+        <BoxContainer Orientation="Vertical" Margin="6" SeparationOverride="4">
+            <Label Name="TickerLabel" ClipText="True" HorizontalExpand="True" />
+            <Label Name="HaltLabel" Text="{Loc 'guild-exchange-window-halted'}" Visible="False" />
+            <BoxContainer Orientation="Horizontal" VerticalExpand="True" SeparationOverride="10">
+                <!-- Markets -->
+                <BoxContainer Orientation="Vertical" MinWidth="250">
+                    <Label Name="WatchlistTitle" Text="{Loc 'guild-exchange-window-watchlist'}" />
+                    <ScrollContainer HScrollEnabled="False" VerticalExpand="True">
+                        <BoxContainer Name="Watchlist" Orientation="Vertical" SeparationOverride="2" />
+                    </ScrollContainer>
+                </BoxContainer>
+                <!-- Selected company, trading and portfolio -->
+                <BoxContainer Orientation="Vertical" HorizontalExpand="True" SeparationOverride="4">
+                    <Label Name="CompanyTitle" ClipText="True" />
+                    <Label Name="CompanyInfo" ClipText="True" />
+                    <exchange:ExchangeChart Name="Chart" MinHeight="170" VerticalExpand="True" />
+                    <Label Name="QuoteLabel" />
+                    <BoxContainer Name="BuyButtons" Orientation="Horizontal" SeparationOverride="4" />
+                    <BoxContainer Name="SellButtons" Orientation="Horizontal" SeparationOverride="4" />
+                    <Label Name="NoticeLabel" />
+                    <Label Name="PortfolioTitle" Text="{Loc 'guild-exchange-window-portfolio'}" />
+                    <BoxContainer Orientation="Horizontal" SeparationOverride="4">
+                        <Button Name="PersonalButton" Text="{Loc 'guild-exchange-window-account-personal'}" ToggleMode="True" />
+                        <Button Name="CargoButton" Text="{Loc 'guild-exchange-window-account-cargo'}" ToggleMode="True" />
+                        <Button Name="FullBudgetButton" Text="{Loc 'guild-exchange-window-full-budget'}" ToggleMode="True" />
+                        <Button Name="WithdrawButton" Text="{Loc 'guild-exchange-window-withdraw'}" />
+                    </BoxContainer>
+                    <Label Name="CashLabel" />
+                    <Label Name="CapLabel" />
+                    <Label Name="ProfitLabel" />
+                    <BoxContainer Name="Holdings" Orientation="Vertical" />
+                </BoxContainer>
+                <!-- News wire and trade log -->
+                <BoxContainer Orientation="Vertical" MinWidth="280" MaxWidth="320">
+                    <Label Name="NewsTitle" Text="{Loc 'guild-exchange-window-news'}" />
+                    <ScrollContainer HScrollEnabled="False" VerticalExpand="True">
+                        <BoxContainer Name="NewsList" Orientation="Vertical" SeparationOverride="4" />
+                    </ScrollContainer>
+                    <Label Name="TradesTitle" Text="{Loc 'guild-exchange-window-trades'}" />
+                    <ScrollContainer HScrollEnabled="False" MinHeight="140">
+                        <BoxContainer Name="TradeList" Orientation="Vertical" />
+                    </ScrollContainer>
+                </BoxContainer>
+            </BoxContainer>
+            <Label Name="MottoLabel" Text="{Loc 'guild-exchange-window-motto'}" />
+        </BoxContainer>
+    </PanelContainer>
+</controls:FancyWindow>

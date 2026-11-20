@@ -1,0 +1,135 @@
+# Announced station events that move prices. Only events the crew is told about belong here, so the market never
+# gives away something hidden.
+
+- type: exchangeShock
+  id: MeteorsSmall
+  rules: [ MeteorSwarmSmall ]
+  headline: guild-exchange-shock-meteors-small
+  shocks:
+    Vulcan: -0.06
+    MedTak: 0.03
+
+- type: exchangeShock
+  id: MeteorsMedium
+  rules: [ MeteorSwarmMedium ]
+  headline: guild-exchange-shock-meteors-medium
+  shocks:
+    Vulcan: -0.1
+    MedTak: 0.05
+    NanoTrasen: -0.03
+
+- type: exchangeShock
+  id: MeteorsLarge
+  rules: [ MeteorSwarmLarge ]
+  headline: guild-exchange-shock-meteors-large
+  shocks:
+    Vulcan: -0.15
+    MedTak: 0.08
+    NanoTrasen: -0.06
+
+- type: exchangeShock
+  id: ImmovableRod
+  rules: [ ImmovableRodSpawn ]
+  headline: guild-exchange-shock-rod
+  shocks:
+    Vulcan: -0.05
+    MedTak: 0.04
+
+- type: exchangeShock
+  id: GasLeak
+  rules: [ GasLeak ]
+  headline: guild-exchange-shock-gas-leak
+  shocks:
+    VioletSky: 0.12
+    NanoTrasen: -0.03
+
+- type: exchangeShock
+  id: PowerGridCheck
+  rules: [ PowerGridCheck ]
+  headline: guild-exchange-shock-power
+  shocks:
+    NanoTrasen: -0.04
+    Cybersun: 0.03
+
+- type: exchangeShock
+  id: CommunicationBlackout
+  rules: [ CommunicationBlackout ]
+  headline: guild-exchange-shock-blackout
+  shocks:
+    Cybersun: -0.06
+    NanoTrasen: -0.03
+
+- type: exchangeShock
+  id: SolarFlare
+  rules: [ SolarFlare ]
+  headline: guild-exchange-shock-solar-flare
+  shocks:
+    Cybersun: -0.05
+
+- type: exchangeShock
+  id: AnomalySpawn
+  rules: [ AnomalySpawn ]
+  headline: guild-exchange-shock-anomaly
+  shocks:
+    Cybersun: 0.04
+    NanoTrasen: -0.02
+
+- type: exchangeShock
+  id: RadStorm
+  rules: [ RadStorm ]
+  headline: guild-exchange-shock-rad-storm
+  shocks:
+    MedTak: 0.06
+    Interdyne: 0.05
+
+- type: exchangeShock
+  id: Creatures
+  rules: [ SpiderSpawnHorde, SlimesSpawnHorde, MouseMigration ]
+  headline: guild-exchange-shock-creatures
+  shocks:
+    MedTak: 0.05
+    WaffleCo: 0.06
+
+- type: exchangeShock
+  id: Kudzu
+  rules: [ KudzuGrowth ]
+  headline: guild-exchange-shock-kudzu
+  shocks:
+    Interdyne: 0.05
+
+- type: exchangeShock
+  id: VentClog
+  rules: [ VentClog ]
+  headline: guild-exchange-shock-vent-clog
+  shocks:
+    Interdyne: 0.04
+
+- type: exchangeShock
+  id: Paperwork
+  rules: [ ClericalError, BureaucraticError ]
+  headline: guild-exchange-shock-paperwork
+  shocks:
+    NanoTrasen: -0.03
+    DonkCo: 0.03
+
+- type: exchangeShock
+  id: SecurityResponse
+  rules: [ ERTSecSpawn, WarOpsERTSpawn ]
+  headline: guild-exchange-shock-ert-security
+  shocks:
+    WaffleCo: 0.1
+    NanoTrasen: -0.05
+
+- type: exchangeShock
+  id: MedicalResponse
+  rules: [ ERTMedSpawn ]
+  headline: guild-exchange-shock-ert-medical
+  shocks:
+    MedTak: 0.08
+
+- type: exchangeShock
+  id: PizzaParty
+  rules: [ GiftsPizzaPartySmall, GiftsPizzaPartyLarge ]
+  headline: guild-exchange-shock-pizza
+  shocks:
+    DonkCo: 0.06

@@ -1,0 +1,9 @@
+- type: cargoProduct
+  id: GuildExchangeTerminalFlatpackPurchase
+  icon:
+    sprite: _Starlight/Structures/Machines/guild_exchange.rsi
+    state: vault
+  product: GuildExchangeTerminalFlatpack
+  cost: 1500
+  category: cargoproduct-category-name-cargo
+  group: market
