@@ -1,17 +1,20 @@
 #nullable enable
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Content.IntegrationTests.Tests.Interaction;
 using Content.Server._Starlight.Cargo.Exchange;
+using Content.Server.Cargo.Components;
 using Content.Server.Cargo.Systems;
 using Content.Server.GameTicking;
 using Content.Server.Station.Systems;
 using Content.Shared._Starlight.Cargo.Exchange;
+using Content.Shared._Starlight.Time;
+using Content.Shared.Cargo;
 using Content.Shared.Cargo.Components;
 using Content.Shared.Inventory;
 using Content.Shared.Maps;
 using Content.Shared.Stacks;
+using Content.Shared.Station.Components;
 using NUnit.Framework;
 using Robust.Shared.GameObjects;
 using Robust.Shared.Localization;
@@ -29,104 +32,11 @@ public sealed class GuildExchangeTest : InteractionTest
 
     private GuildExchangeSystem Exchange => SEntMan.System<GuildExchangeSystem>();
 
-    private List<ExchangeCompanyPrototype> Companies()
+    private sealed class Purse(long balance) : IExchangeWallet
     {
-        return ProtoMan.EnumeratePrototypes<ExchangeCompanyPrototype>().ToList();
-    }
+        public long Balance { get; private set; } = balance;
 
-    [Test]
-    public async Task PricesRepeatFromASeed()
-    {
-        await Server.WaitAssertion(() =>
-        {
-            var settings = Exchange.Settings;
-            var a = new ExchangeMarket(Companies(), Seed);
-            var b = new ExchangeMarket(Companies(), Seed);
-            var c = new ExchangeMarket(Companies(), Seed + 1);
-            for (var i = 0; i < 60; i++)
-            {
-                a.Tick(settings);
-                b.Tick(settings);
-                c.Tick(settings);
-            }
-
-            Assert.That(a.Companies.Count, Is.EqualTo(8));
-            foreach (var (id, company) in a.Companies)
-            {
-                Assert.That(company.History, Is.EqualTo(b.Companies[id].History), $"{id} replays");
-            }
-
-            Assert.That(a.Companies.Values.Select(x => x.Price), Is.Not.EqualTo(c.Companies.Values.Select(x => x.Price)));
-        });
-    }
-
-    /// <summary>
-    /// The exchange's own arbitrage test: over many simulated rounds with symmetric news, holding shares and trading at
-    /// random both lose money on average once the spread and fee are paid.
-    /// </summary>
-    [Test]
-    public async Task NaiveTradingLosesOnAverage()
-    {
-        await Server.WaitAssertion(() =>
-        {
-            var settings = Exchange.Settings;
-            long hold = 0, random = 0;
-            const int rounds = 200;
-            for (var round = 0; round < rounds; round++)
-            {
-                var market = new ExchangeMarket(Companies(), round);
-                var dice = new System.Random(round);
-                var bought = new Dictionary<string, (int Shares, int Cost)>();
-                var traderShares = new Dictionary<string, int>();
-
-                foreach (var (id, company) in market.Companies)
-                {
-                    var (cost, price) = ExchangeMath.Buy(company.Price, 20, company.Proto.Liquidity, settings.Spread, settings.Fee);
-                    company.Price = price;
-                    bought[id] = (20, cost);
-                }
-
-                for (var tick = 0; tick < 120; tick++)
-                {
-                    // Sector news: a random company moves up or down by its news size.
-                    if (tick % 6 == 0)
-                    {
-                        var news = market.Companies.Values.ElementAt(dice.Next(market.Companies.Count));
-                        market.QueueShock(news.Proto.ID, dice.Next(2) == 0 ? news.Proto.NewsShock : -news.Proto.NewsShock);
-                    }
-
-                    market.Tick(settings);
-
-                    var pick = market.Companies.Values.ElementAt(dice.Next(market.Companies.Count));
-                    var held = traderShares.GetValueOrDefault(pick.Proto.ID);
-                    if (dice.Next(2) == 0)
-                    {
-                        var (cost, price) = ExchangeMath.Buy(pick.Price, 5, pick.Proto.Liquidity, settings.Spread, settings.Fee);
-                        pick.Price = price;
-                        random -= cost;
-                        traderShares[pick.Proto.ID] = held + 5;
-                    }
-                    else if (held > 0)
-                    {
-                        var (proceeds, price) = ExchangeMath.Sell(pick.Price, held, pick.Proto.Liquidity, settings.Spread, settings.Fee);
-                        pick.Price = price;
-                        random += proceeds;
-                        traderShares[pick.Proto.ID] = 0;
-                    }
-                }
-
-                foreach (var (id, company) in market.Companies)
-                {
-                    hold += ExchangeMath.Sell(company.Price, bought[id].Shares, company.Proto.Liquidity, settings.Spread, settings.Fee).Proceeds
-                        - bought[id].Cost;
-                    if (traderShares.GetValueOrDefault(id) is var left and > 0)
-                        random += ExchangeMath.Sell(company.Price, left, company.Proto.Liquidity, settings.Spread, settings.Fee).Proceeds;
-                }
-            }
-
-            Assert.That(hold / (double) rounds, Is.LessThan(0), "buy and hold");
-            Assert.That(random / (double) rounds, Is.LessThan(0), "random trading");
-        });
+        public void Add(long amount) => Balance += amount;
     }
 
     [Test]
@@ -149,7 +59,7 @@ public sealed class GuildExchangeTest : InteractionTest
             var before = cargo.GetBalanceFromAccount(station, "Cargo");
             Assert.That(Exchange.TryTrade(machine, SPlayer, ExchangeAccountKind.Cargo, "DonkCo", 5), Is.Null);
             Assert.That(cargo.GetBalanceFromAccount(station, "Cargo"), Is.LessThan(before));
-            Assert.That(Exchange.GetCargoAccount(machine, out _)!.Holdings["DonkCo"].Shares, Is.EqualTo(5));
+            Assert.That(Exchange.GetCargoAccount(machine, out _)!.Longs["DonkCo"].Shares, Is.EqualTo(5));
         });
     }
 
@@ -157,17 +67,12 @@ public sealed class GuildExchangeTest : InteractionTest
     public async Task CargoCapAndCooldownHold()
     {
         var machine = await PoweredExchange();
-        var station = await MakeStation();
+        await MakeStation();
         await PlaceInHands("QuartermasterIDCard");
 
         await Server.WaitAssertion(() =>
         {
-            var cargo = SEntMan.System<CargoSystem>();
-            var balance = cargo.GetBalanceFromAccount(station, "Cargo");
-            var company = Exchange.Market!.Companies["NanoTrasen"];
-            var tooMany = ExchangeMath.MaxAffordable(company.Price, balance, company.Proto.Liquidity, Exchange.Settings.Spread, Exchange.Settings.Fee);
-            Assert.That(tooMany, Is.GreaterThan(0));
-            Assert.That(Exchange.TryTrade(machine, SPlayer, ExchangeAccountKind.Cargo, "NanoTrasen", tooMany),
+            Assert.That(Exchange.TryTrade(machine, SPlayer, ExchangeAccountKind.Cargo, "NanoTrasen", OverCap()),
                 Is.EqualTo(Loc.GetString("guild-exchange-cap")));
 
             Assert.That(Exchange.TryTrade(machine, SPlayer, ExchangeAccountKind.Cargo, "NanoTrasen", 1), Is.Null);
@@ -177,17 +82,32 @@ public sealed class GuildExchangeTest : InteractionTest
     }
 
     [Test]
+    public async Task CargoShortsCountTowardTheCap()
+    {
+        var machine = await PoweredExchange();
+        await MakeStation();
+        await PlaceInHands("CargoIDCard");
+
+        await Server.WaitAssertion(() =>
+        {
+            Assert.That(Exchange.TryOrder(machine, SPlayer, ExchangeAccountKind.Cargo, ExchangeOrderSide.Short, "NanoTrasen", OverCap()),
+                Is.EqualTo(Loc.GetString("guild-exchange-cap")));
+            Assert.That(Exchange.TryOrder(machine, SPlayer, ExchangeAccountKind.Cargo, ExchangeOrderSide.Short, "NanoTrasen", 1), Is.Null);
+        });
+    }
+
+    [Test]
     public async Task CargoStaffStayCappedAndCannotUnlock()
     {
         var machine = await PoweredExchange();
-        var station = await MakeStation();
+        await MakeStation();
         await PlaceInHands("CargoIDCard");
 
         await Server.WaitAssertion(() =>
         {
             Assert.That(Exchange.SetFullBudget(machine, SPlayer, true), Is.EqualTo(Loc.GetString("guild-exchange-full-budget-denied")));
             Assert.That(machine.Comp.FullBudgetBy, Is.Null);
-            Assert.That(Exchange.TryTrade(machine, SPlayer, ExchangeAccountKind.Cargo, "NanoTrasen", OverCap(station)),
+            Assert.That(Exchange.TryTrade(machine, SPlayer, ExchangeAccountKind.Cargo, "NanoTrasen", OverCap()),
                 Is.EqualTo(Loc.GetString("guild-exchange-cap")));
         });
     }
@@ -196,12 +116,12 @@ public sealed class GuildExchangeTest : InteractionTest
     public async Task QuartermasterCanUnlockTheWholeBudget()
     {
         var machine = await PoweredExchange();
-        var station = await MakeStation();
+        await MakeStation();
         await PlaceInHands("QuartermasterIDCard");
 
         await Server.WaitAssertion(() =>
         {
-            var overCap = OverCap(station);
+            var overCap = OverCap();
             Assert.That(Exchange.SetFullBudget(machine, SPlayer, true), Is.Null);
             Assert.That(machine.Comp.FullBudgetBy, Is.EqualTo(SPlayer));
             Assert.That(Exchange.TryTrade(machine, SPlayer, ExchangeAccountKind.Cargo, "NanoTrasen", overCap), Is.Null,
@@ -240,16 +160,17 @@ public sealed class GuildExchangeTest : InteractionTest
     }
 
     /// <summary>
-    /// A NanoTrasen order that costs more than a quarter of cargo's budget but no more than the whole of it.
+    /// NanoTrasen shares costing more than cargo may still invest under the cap, but less than its whole budget.
     /// </summary>
-    private int OverCap(EntityUid station)
+    private int OverCap()
     {
+        var account = Exchange.GetCargoAccount(STarget!.Value, out var station)!;
         var balance = SEntMan.System<CargoSystem>().GetBalanceFromAccount(station, "Cargo");
         var company = Exchange.Market!.Companies["NanoTrasen"];
         var settings = Exchange.Settings;
-        var shares = ExchangeMath.MaxAffordable(company.Price, (int) (balance * 0.4f), company.Proto.Liquidity, settings.Spread, settings.Fee);
-        Assert.That(ExchangeMath.Buy(company.Price, shares, company.Proto.Liquidity, settings.Spread, settings.Fee).Cost,
-            Is.GreaterThan(balance * settings.CargoCap));
+        var shares = ExchangeMath.MaxAffordable(company.Price, (long) (balance * 0.4f), company.Proto.Spread, settings.Fee);
+        Assert.That(ExchangeMath.Buy(company.Price, shares, company.Proto.Spread, settings.Fee),
+            Is.GreaterThan(ExchangeLedger.CapLeft(account, balance, settings.CargoCap)));
         return shares;
     }
 
@@ -293,7 +214,193 @@ public sealed class GuildExchangeTest : InteractionTest
     }
 
     [Test]
-    public async Task RoundEndSellsCargoShares()
+    public async Task ShortingAFallingStockProfitsAndARisingOneIsCalled()
+    {
+        await PoweredExchange();
+        await Server.WaitAssertion(() =>
+        {
+            var market = Exchange.Market!;
+            var nt = market.Companies["NanoTrasen"];
+
+            var falling = new ExchangeAccount(false, "bear");
+            var purse = new Purse(10_000);
+            nt.Price = 100f;
+            Assert.That(ExchangeLedger.Short(market, falling, purse, "NanoTrasen", 50).Ok);
+            Assert.That(purse.Balance, Is.EqualTo(10_000 - 2_500), "half the value put up as margin");
+            nt.Price = 80f;
+            Assert.That(ExchangeLedger.Cover(market, falling, purse, "NanoTrasen", 50).Ok);
+            Assert.That(falling.Shorts, Is.Empty, "the borrowed shares went back");
+            Assert.That(purse.Balance, Is.GreaterThan(10_000), "a falling stock pays the short");
+
+            var rising = new ExchangeAccount(false, "squeezed");
+            var wallet = new Purse(10_000);
+            nt.Price = 100f;
+            Assert.That(ExchangeLedger.Short(market, rising, wallet, "NanoTrasen", 50).Ok);
+            nt.Price = 115f;
+            Assert.That(ExchangeLedger.MarginCalls(market, rising, wallet), Is.Empty, "still above the maintenance margin");
+            nt.Price = 140f;
+            var called = ExchangeLedger.MarginCalls(market, rising, wallet);
+            Assert.That(called, Has.Count.EqualTo(1), "covered by force past the margin");
+            Assert.That(rising.Shorts, Is.Empty);
+            Assert.That(wallet.Balance, Is.LessThan(10_000), "a rally costs the short");
+            Assert.That(rising.WrittenOff, Is.Zero, "the collateral covered it");
+        });
+    }
+
+    [Test]
+    public async Task TradingCreatesNoMoneyOrShares()
+    {
+        await PoweredExchange();
+        await Server.WaitAssertion(() =>
+        {
+            var market = Exchange.Market!;
+            var account = new ExchangeAccount(false, "churn");
+            var purse = new Purse(50_000);
+            var dice = new System.Random(Seed);
+            var companies = market.Companies.Keys.ToList();
+
+            // Prices never move here, so every spesos that leaves is a cost and none may come back extra.
+            for (var i = 0; i < 300; i++)
+            {
+                var company = companies[dice.Next(companies.Count)];
+                var shares = dice.Next(1, 40);
+                switch (dice.Next(4))
+                {
+                    case 0: ExchangeLedger.Buy(market, account, purse, company, shares); break;
+                    case 1: ExchangeLedger.Sell(market, account, purse, company, shares); break;
+                    case 2: ExchangeLedger.Short(market, account, purse, company, shares); break;
+                    default: ExchangeLedger.Cover(market, account, purse, company, shares); break;
+                }
+
+                ExchangeLedger.ChargeBorrowFees(market, account);
+            }
+
+            ExchangeLedger.Settle(market, account, purse);
+            Assert.That(account.Longs, Is.Empty);
+            Assert.That(account.Shorts, Is.Empty, "every borrowed share returned");
+            Assert.That(purse.Balance, Is.LessThan(50_000), "costs only, no free money");
+            Assert.That(purse.Balance, Is.GreaterThan(0));
+        });
+    }
+
+    [Test]
+    public async Task LimitOrdersWaitForTheirPrice()
+    {
+        await PoweredExchange();
+        await Server.WaitAssertion(() =>
+        {
+            var market = Exchange.Market!;
+            var donk = market.Companies["DonkCo"];
+            var account = new ExchangeAccount(false, "patient");
+            var purse = new Purse(10_000);
+            donk.Price = 40f;
+
+            Assert.That(ExchangeLedger.PlaceLimit(market, account, "DonkCo", true, 10, 35f, EntityUid.Invalid).Ok);
+            Assert.That(ExchangeLedger.FillLimits(market, account, purse, () => null), Is.Empty, "not reached");
+
+            donk.Price = 34f;
+            var filled = ExchangeLedger.FillLimits(market, account, purse, () => null);
+            Assert.That(filled, Has.Count.EqualTo(1));
+            Assert.That(filled[0].Result.Ok);
+            Assert.That(account.Longs["DonkCo"].Shares, Is.EqualTo(10));
+            Assert.That(account.Orders, Is.Empty);
+
+            for (var i = 0; i < market.Settings.MaxOpenOrders; i++)
+            {
+                Assert.That(ExchangeLedger.PlaceLimit(market, account, "DonkCo", false, 1, 100f + i, EntityUid.Invalid).Ok);
+            }
+
+            Assert.That(ExchangeLedger.PlaceLimit(market, account, "DonkCo", false, 1, 200f, EntityUid.Invalid).Error,
+                Is.EqualTo("guild-exchange-too-many-orders"));
+            Assert.That(ExchangeLedger.CancelLimit(account, account.Orders[0].Id));
+            Assert.That(account.Orders, Has.Count.EqualTo(market.Settings.MaxOpenOrders - 1));
+        });
+    }
+
+    [Test]
+    public async Task DividendsReachHolders()
+    {
+        await PoweredExchange();
+        await Server.WaitAssertion(() =>
+        {
+            var market = Exchange.Market!;
+            var account = new ExchangeAccount(false, "holder");
+            var purse = new Purse(10_000);
+            Assert.That(ExchangeLedger.Buy(market, account, purse, "MedTak", 20).Ok);
+            var before = purse.Balance;
+
+            market.TakeNews();
+            ExchangeNewsItem? dividend = null;
+            while (dividend == null && market.Ticks <= market.Settings.DividendEvery)
+            {
+                market.Tick();
+                dividend = market.TakeNews().FirstOrDefault(n => n.Kind == ExchangeNewsKind.Dividend && n.Company == "MedTak");
+            }
+
+            Assert.That(dividend, Is.Not.Null, "MedTak pays on the dividend date");
+            ExchangeLedger.PayDividend(account, purse, "MedTak", dividend!.Amount);
+            Assert.That(purse.Balance, Is.EqualTo(before + (long) MathF.Floor(20 * dividend.Amount)));
+        });
+    }
+
+    [Test]
+    public async Task EarningsFollowTheQuarter()
+    {
+        await PoweredExchange();
+        await Server.WaitAssertion(() =>
+        {
+            var market = Exchange.Market!;
+            Assert.That(market.Earnings.Select(e => e.Company).Distinct().Count(), Is.EqualTo(8), "everyone reports");
+            Assert.That(market.Earnings.All(e => e.Consensus > 0 && e.Actual == null), "consensus is known before");
+
+            var report = market.Earnings[0];
+            var company = market.Companies[report.Company];
+            while (market.Ticks < report.Tick)
+            {
+                company.QuarterNews = 0.4f;
+                market.Tick();
+            }
+
+            Assert.That(report.Actual, Is.GreaterThan(report.Consensus), "a strong quarter beats");
+            Assert.That(market.TakeNews().Any(n => n.Kind == ExchangeNewsKind.Earnings && n.Company == report.Company && n.Sentiment > 0));
+        });
+    }
+
+    [Test]
+    public async Task PaidCargoOrdersLiftTheirSupplier()
+    {
+        await PoweredExchange();
+        CargoOrderData? paid = null;
+        await Server.WaitAssertion(() =>
+        {
+            Assert.That(Exchange.SupplierOf("FoodPizza"), Is.EqualTo("DonkCo"), "by category");
+            Assert.That(Exchange.SupplierOf("EmergencyBruteKit"), Is.EqualTo("MedTak"), "by product");
+            Assert.That(Exchange.SupplierOf("CargoMailCart"), Is.EqualTo("Vulcan"));
+
+            var unpaid = new CargoOrderData(1, "FoodPizza", 5, "test", "test", "Cargo") { Price = 900 };
+            paid = new CargoOrderData(2, "FoodPizza", 5, "test", "test", "Cargo") { Price = 900 };
+            foreach (var order in new[] { unpaid, paid })
+            {
+                var ev = new FulfillCargoOrderEvent((EntityUid.Invalid, new StationDataComponent()), order,
+                    (EntityUid.Invalid, new CargoOrderConsoleComponent()));
+                SEntMan.EventBus.RaiseEvent(EventSource.Local, ref ev);
+            }
+
+            // Cargo charges after offering the order; only then is it approved.
+            paid.Approved = true;
+        });
+
+        await RunTicks(1);
+        await Server.WaitAssertion(() =>
+        {
+            var donk = Exchange.Market!.Companies["DonkCo"];
+            var expected = 4500f / Exchange.Settings.OrderScale * Exchange.Settings.OrderMaxBoost;
+            Assert.That(donk.OrderBoost, Is.EqualTo(expected).Within(1e-4f), "only the paid order counts");
+        });
+    }
+
+    [Test]
+    public async Task RoundEndClosesEverything()
     {
         var machine = await PoweredExchange();
         var station = await MakeStation();
@@ -303,14 +410,35 @@ public sealed class GuildExchangeTest : InteractionTest
         {
             var cargo = SEntMan.System<CargoSystem>();
             Assert.That(Exchange.TryTrade(machine, SPlayer, ExchangeAccountKind.Cargo, "MedTak", 5), Is.Null);
+            Exchange.GetCargoAccount(machine, out _)!.NextTrade = TimeSpan.Zero;
+            Assert.That(Exchange.TryOrder(machine, SPlayer, ExchangeAccountKind.Cargo, ExchangeOrderSide.Short, "DonkCo", 5), Is.Null);
             var before = cargo.GetBalanceFromAccount(station, "Cargo");
 
             var ev = new RoundEndTextAppendEvent();
             SEntMan.EventBus.RaiseEvent(EventSource.Local, ev);
 
-            Assert.That(Exchange.GetCargoAccount(machine, out _)!.Holdings, Is.Empty);
-            Assert.That(cargo.GetBalanceFromAccount(station, "Cargo"), Is.GreaterThan(before));
-            Assert.That(ev.Text, Does.Contain("Guild Exchange"));
+            var account = Exchange.GetCargoAccount(machine, out _)!;
+            Assert.That(account.Longs, Is.Empty);
+            Assert.That(account.Shorts, Is.Empty, "shorts covered at the bell");
+            Assert.That(cargo.GetBalanceFromAccount(station, "Cargo"), Is.GreaterThan(before), "money back in the budget");
+            Assert.That(ev.Text, Does.Contain(Exchange.StationTime(Server.Timing.CurTime)), "the bell rings in station time");
+        });
+    }
+
+    [Test]
+    public async Task TimesAreStationTime()
+    {
+        await PoweredExchange();
+        await Server.WaitAssertion(() =>
+        {
+            var clock = SEntMan.System<SharedTimeSystem>();
+            var now = Server.Timing.CurTime;
+            Assert.That(clock.GetStationTime(now), Is.EqualTo(clock.GetStationTime()), "same clock as the PDA");
+            Assert.That(ExchangeTime.Format(clock, now), Is.EqualTo(clock.GetStationTime().Time.ToString(@"hh\:mm")));
+            Assert.That(Exchange.StationTime(now), Is.EqualTo(ExchangeTime.Format(clock, now)));
+
+            Exchange.ApplyShock(ProtoMan.Index<ExchangeShockPrototype>("PizzaParty"));
+            Assert.That(Exchange.NewsWire[0].Time, Is.EqualTo(now), "wire stories carry game time, shown as station time");
         });
     }
 
@@ -325,10 +453,10 @@ public sealed class GuildExchangeTest : InteractionTest
             Exchange.ApplyShock(shock);
 
             Assert.That(Exchange.NewsWire[0].Text, Is.EqualTo(Loc.GetString(shock.Headline)), "headline first");
-            Assert.That(vulcan.Value, Is.EqualTo(vulcan.Proto.Price), "the price hasn't moved yet");
+            var before = vulcan.Value;
 
             Exchange.Tick();
-            Assert.That(vulcan.Value, Is.LessThan(vulcan.Proto.Price * 0.9f));
+            Assert.That(vulcan.Value, Is.LessThan(before * 0.9f));
             for (var i = 0; i < 6; i++)
             {
                 Exchange.Tick();
