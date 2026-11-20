@@ -16,6 +16,7 @@ using Content.Shared.Wires;
 using Content.Server._Starlight.Medical.Body.Systems;
 using Content.Shared.Body.Components;
 using Content.Shared.Inventory;
+using Content.Shared.StepTrigger.Components;
 using Content.Shared.Damage.Systems;
 using Content.Server.Fluids.EntitySystems;
 using System.Collections.Generic;
@@ -158,8 +159,8 @@ public sealed class SmokeMachineTest : InteractionTest
     }
 
     /// <summary>
-    /// A gas-tight mask or working internals keeps the haze off entirely: nothing breathed in (space drugs in the blood)
-    /// and nothing touched (acid burns). A mask that isn't gas-tight does nothing.
+    /// A gas-tight mask or working internals keeps the haze out of the lungs (no space drugs in the blood), but it still
+    /// touches the skin (acid burns). A mask that isn't gas-tight does nothing.
     /// </summary>
     [TestCase("SpaceDrugs", null, false, true)]
     [TestCase("SpaceDrugs", "ClothingMaskSterile", false, true)]
@@ -168,10 +169,10 @@ public sealed class SmokeMachineTest : InteractionTest
     [TestCase("SpaceDrugs", "ClothingMaskBreath", true, false)]
     [TestCase("FluorosulfuricAcid", null, false, true)]
     [TestCase("FluorosulfuricAcid", "ClothingMaskSterile", false, true)]
-    [TestCase("FluorosulfuricAcid", "ClothingMaskGas", false, false)]
-    [TestCase("FluorosulfuricAcid", "ClothingMaskBreath", false, false)]
-    [TestCase("FluorosulfuricAcid", "ClothingMaskBreath", true, false)]
-    public async Task GasTightMasksAndInternalsKeepTheHazeOff(string reagent, string? mask, bool internals, bool reaches)
+    [TestCase("FluorosulfuricAcid", "ClothingMaskGas", false, true)]
+    [TestCase("FluorosulfuricAcid", "ClothingMaskBreath", false, true)]
+    [TestCase("FluorosulfuricAcid", "ClothingMaskBreath", true, true)]
+    public async Task MasksAndInternalsOnlyStopBreathing(string reagent, string? mask, bool internals, bool reaches)
     {
         await Placed();
         await OpenFloor();
@@ -184,6 +185,42 @@ public sealed class SmokeMachineTest : InteractionTest
                 Assert.That(BloodHas(human, reagent), Is.EqualTo(reaches), "breathed in");
             else
                 Assert.That(Caustic(human) > 0, Is.EqualTo(reaches), "touched");
+        });
+    }
+
+    /// <summary>
+    /// A sealed suit with its helmet or hood keeps the haze off entirely. Half a set doesn't.
+    /// </summary>
+    [TestCase("ClothingOuterHardsuitEngineering", "ClothingHeadHelmetHardsuitEngineering", false)]
+    [TestCase("ClothingOuterHardsuitEVA", "ClothingHeadHelmetEVA", false)]
+    [TestCase("ClothingOuterBioGeneral", "ClothingHeadHatHoodBioGeneral", false)]
+    [TestCase("ClothingOuterBioGeneral", null, true)]
+    [TestCase("ClothingOuterWinterCoat", "ClothingHeadHatHoodBioGeneral", true)]
+    public async Task SealedSuitsKeepTheHazeOffTheSkin(string suit, string? head, bool touched)
+    {
+        await Placed();
+        await OpenFloor();
+        await Server.WaitPost(() =>
+        {
+            Fill("SpaceDrugs", 50);
+            Fill("FluorosulfuricAcid", 50);
+        });
+        var human = await HumanInHaze("SpaceDrugs");
+        await Server.WaitPost(() =>
+        {
+            var inventory = SEntMan.System<InventorySystem>();
+            var coords = SEntMan.GetComponent<TransformComponent>(human).Coordinates;
+            Assert.That(inventory.TryEquip(human, SEntMan.SpawnAtPosition(suit, coords), "outerClothing", silent: true, force: true));
+            if (head != null)
+                Assert.That(inventory.TryEquip(human, SEntMan.SpawnAtPosition(head, coords), "head", silent: true, force: true));
+        });
+
+        await RunSeconds(8);
+        await Server.WaitAssertion(() =>
+        {
+            Assert.That(Caustic(human) > 0, Is.EqualTo(touched), "acid on the skin");
+            if (!touched)
+                Assert.That(BloodHas(human, "SpaceDrugs"), Is.False, "nothing breathed in either");
         });
     }
 
@@ -257,15 +294,16 @@ public sealed class SmokeMachineTest : InteractionTest
     public async Task PuffsButNotWhileSmokeSitsOnItsTile()
     {
         await Placed();
+        await OpenFloor();
         await Server.WaitAssertion(() =>
         {
             Fill("Water", 100);
             Assert.That(Machine.TryPuff(STarget!.Value), "a filled, powered, anchored machine puffs");
-            Assert.That(Tank().Volume, Is.EqualTo(FixedPoint2.New(100 - 25 / 20f)), "setting 1 costs 1.25u");
+            Assert.That(Tank().Volume, Is.EqualTo(FixedPoint2.New(100 - 25 / 20f - 10)), "setting 1 costs 1.25u, plus the 10u drip");
             Assert.That(HazeCount(), Is.EqualTo(1));
 
             Assert.That(Machine.TryPuff(STarget.Value), Is.False, "no new puff while smoke sits on its tile");
-            Assert.That(Tank().Volume, Is.EqualTo(FixedPoint2.New(100 - 25 / 20f)), "a skipped step costs nothing");
+            Assert.That(Tank().Volume, Is.EqualTo(FixedPoint2.New(100 - 25 / 20f - 10)), "a skipped step costs nothing");
         });
     }
 
@@ -273,11 +311,12 @@ public sealed class SmokeMachineTest : InteractionTest
     public async Task PuffCarriesTwentyUnitsButCostsOnlyItsTiles()
     {
         await Placed();
+        await OpenFloor();
         await Server.WaitAssertion(() =>
         {
             Fill("Water", 200);
             Assert.That(Machine.TryPuff(STarget!.Value));
-            Assert.That(Tank().Volume, Is.EqualTo(FixedPoint2.New(200 - 25 / 20f)), "the tank pays 25 tiles / 20");
+            Assert.That(Tank().Volume, Is.EqualTo(FixedPoint2.New(200 - 25 / 20f - 10)), "the tank pays 25 tiles / 20, plus the drip");
 
             var query = SEntMan.EntityQueryEnumerator<SmokeMachineHazeComponent, SmokeComponent>();
             Assert.That(query.MoveNext(out var haze, out _, out var smoke));
@@ -288,16 +327,18 @@ public sealed class SmokeMachineTest : InteractionTest
     }
 
     /// <summary>
-    /// The haze only works through the air: a tank of glue leaves nothing on the floor, and juice doesn't join puddles.
+    /// The haze itself never wets the floor; the machine drips 10u of its mix beside it per puff and the tank pays for
+    /// it, so the floor never holds more than the tank lost.
     /// </summary>
     [TestCase("SpaceGlue", false)]
     [TestCase("JuiceOrange", true)]
-    public async Task HazeNeverWetsTheFloor(string reagent, bool puddlesAround)
+    public async Task FloorGetsOnlyThePaidDrip(string reagent, bool puddlesAround)
     {
         await Placed();
         await OpenFloor();
 
         FixedPoint2 before = 0;
+        FixedPoint2 spent = 0;
         await Server.WaitAssertion(() =>
         {
             var coords = SEntMan.GetComponent<TransformComponent>(STarget!.Value).Coordinates;
@@ -313,14 +354,75 @@ public sealed class SmokeMachineTest : InteractionTest
             Machine.SetSetting(STarget.Value, 3);
             before = PuddleVolume(reagent);
             Assert.That(Machine.TryPuff(STarget.Value));
-            Assert.That(100 - Tank().Volume, Is.EqualTo(FixedPoint2.New(9.05f)));
+            spent = 100 - Tank().Volume;
+            Assert.That(spent, Is.EqualTo(FixedPoint2.New(9.05f) + FixedPoint2.New(10)), "the puff plus the drip");
         });
 
         await RunSeconds(8);
         await Server.WaitAssertion(() =>
         {
             Assert.That(HazeCount(), Is.GreaterThan(1), "the haze spread");
-            Assert.That(PuddleVolume(reagent), Is.EqualTo(before), "nothing of it reached the floor");
+            Assert.That(PuddleVolume(reagent) - before, Is.EqualTo(FixedPoint2.New(10)), "only the drip reached the floor");
+            Assert.That(PuddleVolume(reagent) - before, Is.LessThanOrEqualTo(spent));
+        });
+    }
+
+    /// <summary>
+    /// Two puffs of space lube drip enough for a slippery puddle beside the machine. A nearly empty tank drips only
+    /// what it has.
+    /// </summary>
+    [Test]
+    public async Task LubeDripsIntoASlipperyPuddle()
+    {
+        await Placed();
+        await OpenFloor();
+        await Server.WaitAssertion(() =>
+        {
+            Fill("SpaceLube", 100);
+            Assert.That(Machine.TryPuff(STarget!.Value));
+        });
+        await ClearHaze();
+        await Server.WaitAssertion(() => Assert.That(Machine.TryPuff(STarget!.Value)));
+        await RunTicks(5);
+
+        await Server.WaitAssertion(() =>
+        {
+            Assert.That(PuddleVolume("SpaceLube"), Is.EqualTo(FixedPoint2.New(20)));
+            var query = SEntMan.EntityQueryEnumerator<PuddleComponent, StepTriggerComponent>();
+            var slippery = false;
+            while (query.MoveNext(out _, out _, out var trigger))
+            {
+                slippery |= trigger.Active;
+            }
+
+            Assert.That(slippery, "the puddle is slippery");
+        });
+    }
+
+    [Test]
+    public async Task AnAlmostEmptyTankDripsWhatItHas()
+    {
+        await Placed();
+        await OpenFloor();
+        await Server.WaitAssertion(() =>
+        {
+            Fill("SpaceGlue", 4);
+            Assert.That(Machine.TryPuff(STarget!.Value));
+            Assert.That(Tank().Volume, Is.EqualTo(FixedPoint2.Zero));
+        });
+        await RunTicks(5);
+        await Server.WaitAssertion(() => Assert.That(PuddleVolume("SpaceGlue"), Is.EqualTo(FixedPoint2.New(4 - 25 / 20f))));
+    }
+
+    private async Task ClearHaze()
+    {
+        await Server.WaitPost(() =>
+        {
+            var query = SEntMan.EntityQueryEnumerator<SmokeMachineHazeComponent>();
+            while (query.MoveNext(out var uid, out _))
+            {
+                SEntMan.DeleteEntity(uid);
+            }
         });
     }
 

@@ -262,7 +262,6 @@ public sealed partial class SmokeSystem : EntitySystem
     {
         if (!Resolve(smokeUid, ref component))
             return;
-        if (SkipsTarget(entity, smokeUid)) return; // Starlight
 
         if (!TryComp<BloodstreamComponent>(entity, out var bloodstream))
             return;
@@ -271,6 +270,7 @@ public sealed partial class SmokeSystem : EntitySystem
             return;
 
         var blockIngestion = _internals.AreInternalsWorking(entity);
+        if (Shields(entity, smokeUid, ref blockIngestion)) return; // Starlight
 
         if (!HasComp<RespiratorComponent>(entity)) // Starlight - Shadekin does not breathe and "AreInternalsWorking" does not check for that.
             blockIngestion = true;
@@ -311,7 +311,7 @@ public sealed partial class SmokeSystem : EntitySystem
         if (!TryComp<MapGridComponent>(xform.GridUid, out var mapGrid))
             return;
 
-        if (HasComp<Content.Server._Starlight.Chemistry.Components.SmokeMachineHazeComponent>(uid)) return; // Starlight: smoke machine haze is only breathed and touched, it never wets floors
+        if (HasComp<Content.Server._Starlight.Chemistry.Components.SmokeMachineHazeComponent>(uid)) return; // Starlight: smoke machine haze leaves floors alone; the machine drips a share it pays for instead
         var tile = _map.GetTileRef(xform.GridUid.Value, mapGrid, xform.Coordinates);
 
         foreach (var reagentQuantity in solution.Contents.ToArray())

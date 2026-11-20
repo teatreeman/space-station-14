@@ -55,6 +55,13 @@ public sealed partial class SmokeMachineComponent : Component
     public FixedPoint2 PuffVolume = 20;
 
     /// <summary>
+    /// Units of the mix that condense and drip onto the floor beside it with each puff, paid from the tank on top of
+    /// the puff. Two puffs of space lube make a slippery puddle, even with some of the first evaporating in between.
+    /// </summary>
+    [DataField]
+    public FixedPoint2 DripVolume = 10;
+
+    /// <summary>
     /// How long a puff's smoke lasts, in seconds.
     /// </summary>
     [DataField]

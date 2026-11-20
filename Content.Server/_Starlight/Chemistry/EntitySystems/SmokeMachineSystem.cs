@@ -2,13 +2,13 @@ using Content.Server._Starlight.Chemistry.Components;
 using Content.Server._Starlight.Chemistry.Events;
 using Content.Server._Starlight.Plumbing;
 using Content.Server.Administration.Logs;
+using Content.Server.Atmos.Components;
 using Content.Server.Chat.Managers;
 using Content.Server.Fluids.EntitySystems;
 using Content.Server.Power.EntitySystems;
 using Content.Shared._Starlight.Chemistry;
 using Content.Shared._Starlight.Construction;
 using Content.Shared.Atmos.Components;
-using Content.Shared._Starlight.Medical.Body.Systems;
 using Content.Shared.Chemistry.Components;
 using Content.Shared.Clothing.Components;
 using Content.Shared.Chemistry.EntitySystems;
@@ -18,12 +18,16 @@ using Content.Shared.Database;
 using Content.Shared.Examine;
 using Content.Shared.FixedPoint;
 using Content.Shared.Inventory;
+using Content.Shared.Maps;
+using Content.Shared.Physics;
 using Content.Shared.Fluids;
 using Content.Shared.Popups;
 using Content.Shared.Power;
 using Content.Shared.Slippery;
 using Content.Shared.Wires;
+using Content.Shared.Zombies;
 using Robust.Server.GameObjects;
+using Robust.Shared.Map;
 using Robust.Shared.Map.Components;
 using Robust.Shared.Timing;
 
@@ -38,7 +42,6 @@ public sealed partial class SmokeMachineSystem : EntitySystem
     [Dependency] private IAdminLogManager _adminLog = default!;
     [Dependency] private IChatManager _chat = default!;
     [Dependency] private IGameTiming _timing = default!;
-    [Dependency] private SharedInternalsSystem _internals = default!;
     [Dependency] private InventorySystem _inventory = default!;
     [Dependency] private SharedAppearanceSystem _appearance = default!;
     [Dependency] private SharedMapSystem _map = default!;
@@ -48,7 +51,16 @@ public sealed partial class SmokeMachineSystem : EntitySystem
     [Dependency] private SmokeSystem _smoke = default!;
     [Dependency] private SharedSolutionContainerSystem _solutions = default!;
     [Dependency] private TransformSystem _transform = default!;
+    [Dependency] private TurfSystem _turf = default!;
     [Dependency] private UserInterfaceSystem _ui = default!;
+
+    /// <summary>
+    /// Suits that cut the chance of being infected by a bite to under half are made to keep contamination out: bio
+    /// suits, CBURN and medical hardsuits. Coats and lab coats stay above it.
+    /// </summary>
+    private const float BioSuitResistance = 0.5f;
+
+    private static readonly Direction[] DripDirections = [Direction.South, Direction.East, Direction.West, Direction.North];
 
     /// <summary>
     /// How much the tank loses for one puff at the machine's current setting.
@@ -116,6 +128,10 @@ public sealed partial class SmokeMachineSystem : EntitySystem
 
         _solutions.SplitSolution(soln.Value, TankLoss(ent));
 
+        // A little condenses and drips out beside it. The tank pays for it, so the floor never gets more than it lost.
+        if (DripTile(gridUid, grid, tile) is { } drip && tank.Volume > 0)
+            _puddle.TrySpillAt(drip, _solutions.SplitSolution(soln.Value, FixedPoint2.Min(ent.Comp.DripVolume, tank.Volume)), out _, sound: false);
+
         // The rest is ordinary chemical smoke, spreading and dosing people the same way as a smoke grenade.
         var smoke = Spawn(ent.Comp.SmokePrototype, _map.GridTileToLocal(gridUid, grid, tile));
         _smoke.StartSmoke(smoke, carried, ent.Comp.SmokeDuration, ent.Comp.PuffSpread[ent.Comp.Setting - 1]);
@@ -124,6 +140,24 @@ public sealed partial class SmokeMachineSystem : EntitySystem
             SetEnabled((ent, ent.Comp), false);
 
         return true;
+    }
+
+    /// <summary>
+    /// The first open tile beside the machine, front first.
+    /// </summary>
+    private EntityCoordinates? DripTile(EntityUid gridUid, MapGridComponent grid, Vector2i tile)
+    {
+        foreach (var dir in DripDirections)
+        {
+            var next = tile.Offset(dir);
+            if (_map.TryGetTileRef(gridUid, grid, next, out var tileRef) && !tileRef.Tile.IsEmpty &&
+                !_turf.IsTileBlocked(gridUid, next, CollisionGroup.Impassable, grid))
+            {
+                return _map.GridTileToLocal(gridUid, grid, next);
+            }
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -177,13 +211,38 @@ public sealed partial class SmokeMachineSystem : EntitySystem
     }
 
     /// <summary>
-    /// Like on tg, a gas-tight mask or working internals keeps the haze off someone entirely, touch included.
+    /// A gas-tight mask keeps the haze out of someone's lungs; it still touches their skin. A sealed suit with its hood
+    /// or helmet keeps it off them entirely.
     /// </summary>
     [SubscribeLocalEvent]
-    private void OnHazeReach(Entity<SmokeMachineHazeComponent> ent, ref SmokeReactAttemptEvent args)
+    private void OnHazeShield(Entity<SmokeMachineHazeComponent> ent, ref SmokeShieldEvent args)
     {
-        if (_internals.AreInternalsWorking(args.Target) || HasGasTightMask(args.Target))
-            args.Cancelled = true;
+        if (HasSealedSuit(args.Target))
+            args.BlockAll = true;
+        else if (HasGasTightMask(args.Target))
+            args.BlockInhale = true;
+    }
+
+    /// <summary>
+    /// Whether they're sealed in head to toe: a space-proof helmet and suit (the same pair that keeps out vacuum), or a
+    /// sealed hood with a suit built against contamination. One piece on its own leaves skin bare.
+    /// </summary>
+    private bool HasSealedSuit(EntityUid uid)
+    {
+        if (!_inventory.TryGetSlotEntity(uid, "head", out var head) || !_inventory.TryGetSlotEntity(uid, "outerClothing", out var suit))
+            return false;
+
+        if (SpaceProof(head.Value) && SpaceProof(suit.Value))
+            return true;
+
+        return HasComp<BreathToolComponent>(head) &&
+               TryComp<ZombificationResistanceComponent>(suit, out var bio) &&
+               bio.ZombificationResistanceCoefficient < BioSuitResistance;
+    }
+
+    private bool SpaceProof(EntityUid item)
+    {
+        return TryComp<PressureProtectionComponent>(item, out var pressure) && pressure.LowPressureMultiplier > 1f;
     }
 
     /// <summary>

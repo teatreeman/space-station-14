@@ -6,12 +6,14 @@ namespace Content.Server.Fluids.EntitySystems;
 public sealed partial class SmokeSystem
 {
     /// <summary>
-    /// Whether this smoke leaves someone standing in it alone, as some smoke does for people with protection.
+    /// Lets a smoke decide what someone's gear keeps out. Returns true if it doesn't reach them at all; otherwise sets
+    /// <paramref name="blockInhale"/> if they don't breathe it in.
     /// </summary>
-    private bool SkipsTarget(EntityUid target, EntityUid smoke)
+    private bool Shields(EntityUid target, EntityUid smoke, ref bool blockInhale)
     {
-        var ev = new SmokeReactAttemptEvent(target);
+        var ev = new SmokeShieldEvent(target);
         RaiseLocalEvent(smoke, ref ev);
-        return ev.Cancelled;
+        blockInhale |= ev.BlockInhale;
+        return ev.BlockAll;
     }
 }
