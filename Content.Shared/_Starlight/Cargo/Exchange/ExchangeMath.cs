@@ -1,9 +1,8 @@
 namespace Content.Shared._Starlight.Cargo.Exchange;
 
 /// <summary>
-/// Trade pricing, shared so the window can show what a trade will cost before it's made.
-/// An order walks the price as it fills, so it pays the average of the price before and after it,
-/// plus half the spread and the fee. Costs round up and proceeds round down.
+/// Trade pricing, shared so the window can show what a trade will cost before it's made. Orders fill at the quoted
+/// price: buyers pay the ask, sellers get the bid, and the fee comes on top. Costs round up and proceeds round down.
 /// </summary>
 public static class ExchangeMath
 {
@@ -13,42 +12,45 @@ public static class ExchangeMath
     public const float MinPrice = 1f;
 
     /// <summary>
-    /// What buying <paramref name="shares"/> costs, and the price afterwards.
+    /// The price a buyer pays for one share.
     /// </summary>
-    public static (int Cost, float NewPrice) Buy(float price, int shares, float liquidity, float spread, float fee)
+    public static float Ask(float price, float spread) => price * (1f + spread / 2f);
+
+    /// <summary>
+    /// The price a seller gets for one share.
+    /// </summary>
+    public static float Bid(float price, float spread) => price * (1f - spread / 2f);
+
+    /// <summary>
+    /// What buying <paramref name="shares"/> costs.
+    /// </summary>
+    public static long Buy(float price, int shares, float spread, float fee)
     {
-        var newPrice = price * (1f + shares / liquidity);
-        var average = (price + newPrice) / 2f;
-        var cost = (int) MathF.Ceiling(average * (1f + spread / 2f) * shares * (1f + fee));
-        return (cost, newPrice);
+        return (long) Math.Ceiling((double) Ask(price, spread) * shares * (1.0 + fee));
     }
 
     /// <summary>
-    /// What selling <paramref name="shares"/> pays, and the price afterwards.
+    /// What selling <paramref name="shares"/> pays.
     /// </summary>
-    public static (int Proceeds, float NewPrice) Sell(float price, int shares, float liquidity, float spread, float fee)
+    public static long Sell(float price, int shares, float spread, float fee)
     {
-        var newPrice = MathF.Max(MinPrice, price * (1f - shares / liquidity));
-        var average = (price + newPrice) / 2f;
-        var proceeds = (int) MathF.Floor(average * (1f - spread / 2f) * shares * (1f - fee));
-        return (proceeds, newPrice);
+        return (long) Math.Floor((double) Bid(price, spread) * shares * (1.0 - fee));
     }
 
     /// <summary>
     /// The most shares that cost no more than <paramref name="budget"/>.
     /// </summary>
-    public static int MaxAffordable(float price, int budget, float liquidity, float spread, float fee, int limit = 1000)
+    public static int MaxAffordable(float price, long budget, float spread, float fee)
     {
-        int low = 0, high = limit;
-        while (low < high)
+        if (budget <= 0)
+            return 0;
+
+        var shares = (int) Math.Min(int.MaxValue - 1, Math.Floor(budget / ((double) Ask(price, spread) * (1.0 + fee))));
+        while (shares > 0 && Buy(price, shares, spread, fee) > budget)
         {
-            var mid = (low + high + 1) / 2;
-            if (Buy(price, mid, liquidity, spread, fee).Cost <= budget)
-                low = mid;
-            else
-                high = mid - 1;
+            shares--;
         }
 
-        return low;
+        return shares;
     }
 }

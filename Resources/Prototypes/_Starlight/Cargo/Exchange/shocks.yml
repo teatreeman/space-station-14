@@ -1,135 +1,142 @@
-# Announced station events that move prices. Only events the crew is told about belong here, so the market never
-# gives away something hidden.
+# Announced station events that move prices, as shares of a company's value, big enough to stand out from its normal
+# swings. Only events the crew is told about belong here, so the market never gives away something hidden.
 
 - type: exchangeShock
   id: MeteorsSmall
   rules: [ MeteorSwarmSmall ]
   headline: guild-exchange-shock-meteors-small
   shocks:
-    Vulcan: -0.06
-    MedTak: 0.03
+    Vulcan: -0.15
+    MedTak: 0.075
 
 - type: exchangeShock
   id: MeteorsMedium
   rules: [ MeteorSwarmMedium ]
   headline: guild-exchange-shock-meteors-medium
   shocks:
-    Vulcan: -0.1
-    MedTak: 0.05
-    NanoTrasen: -0.03
+    Vulcan: -0.25
+    MedTak: 0.125
+    NanoTrasen: -0.075
 
 - type: exchangeShock
   id: MeteorsLarge
   rules: [ MeteorSwarmLarge ]
   headline: guild-exchange-shock-meteors-large
   shocks:
-    Vulcan: -0.15
-    MedTak: 0.08
-    NanoTrasen: -0.06
+    Vulcan: -0.35
+    MedTak: 0.2
+    NanoTrasen: -0.15
+  factors:
+    Market: -0.05
 
 - type: exchangeShock
   id: ImmovableRod
   rules: [ ImmovableRodSpawn ]
   headline: guild-exchange-shock-rod
   shocks:
-    Vulcan: -0.05
-    MedTak: 0.04
+    Vulcan: -0.125
+    MedTak: 0.1
 
 - type: exchangeShock
   id: GasLeak
   rules: [ GasLeak ]
   headline: guild-exchange-shock-gas-leak
   shocks:
-    VioletSky: 0.12
-    NanoTrasen: -0.03
+    VioletSky: 0.2
+    NanoTrasen: -0.075
+  factors:
+    Plasma: 0.075
 
 - type: exchangeShock
   id: PowerGridCheck
   rules: [ PowerGridCheck ]
   headline: guild-exchange-shock-power
   shocks:
-    NanoTrasen: -0.04
-    Cybersun: 0.03
+    NanoTrasen: -0.1
+    Cybersun: 0.075
 
 - type: exchangeShock
   id: CommunicationBlackout
   rules: [ CommunicationBlackout ]
   headline: guild-exchange-shock-blackout
   shocks:
-    Cybersun: -0.06
-    NanoTrasen: -0.03
+    Cybersun: -0.15
+    NanoTrasen: -0.075
 
 - type: exchangeShock
   id: SolarFlare
   rules: [ SolarFlare ]
   headline: guild-exchange-shock-solar-flare
   shocks:
-    Cybersun: -0.05
+    Cybersun: -0.125
 
 - type: exchangeShock
   id: AnomalySpawn
   rules: [ AnomalySpawn ]
   headline: guild-exchange-shock-anomaly
   shocks:
-    Cybersun: 0.04
-    NanoTrasen: -0.02
+    Cybersun: 0.1
+    NanoTrasen: -0.05
 
 - type: exchangeShock
   id: RadStorm
   rules: [ RadStorm ]
   headline: guild-exchange-shock-rad-storm
   shocks:
-    MedTak: 0.06
-    Interdyne: 0.05
+    MedTak: 0.15
+    Interdyne: 0.125
 
 - type: exchangeShock
   id: Creatures
   rules: [ SpiderSpawnHorde, SlimesSpawnHorde, MouseMigration ]
   headline: guild-exchange-shock-creatures
   shocks:
-    MedTak: 0.05
-    WaffleCo: 0.06
+    MedTak: 0.125
+    WaffleCo: 0.15
 
 - type: exchangeShock
   id: Kudzu
   rules: [ KudzuGrowth ]
   headline: guild-exchange-shock-kudzu
   shocks:
-    Interdyne: 0.05
+    Interdyne: 0.125
 
 - type: exchangeShock
   id: VentClog
   rules: [ VentClog ]
   headline: guild-exchange-shock-vent-clog
   shocks:
-    Interdyne: 0.04
+    Interdyne: 0.1
 
 - type: exchangeShock
   id: Paperwork
   rules: [ ClericalError, BureaucraticError ]
   headline: guild-exchange-shock-paperwork
   shocks:
-    NanoTrasen: -0.03
-    DonkCo: 0.03
+    NanoTrasen: -0.075
+    DonkCo: 0.075
 
 - type: exchangeShock
   id: SecurityResponse
   rules: [ ERTSecSpawn, WarOpsERTSpawn ]
   headline: guild-exchange-shock-ert-security
   shocks:
-    WaffleCo: 0.1
-    NanoTrasen: -0.05
+    WaffleCo: 0.25
+    NanoTrasen: -0.125
+  # A station in enough trouble to need a response team is good news for the Syndicate's friends.
+  factors:
+    Syndicate: 0.15
 
 - type: exchangeShock
   id: MedicalResponse
   rules: [ ERTMedSpawn ]
   headline: guild-exchange-shock-ert-medical
   shocks:
-    MedTak: 0.08
+    MedTak: 0.2
 
 - type: exchangeShock
   id: PizzaParty
   rules: [ GiftsPizzaPartySmall, GiftsPizzaPartyLarge ]
   headline: guild-exchange-shock-pizza
   shocks:
-    DonkCo: 0.06
+    DonkCo: 0.15

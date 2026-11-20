@@ -1,2 +1,16 @@
+# The exchange's tuning, measured with the scripted traders in GuildExchangeSimulationTest over 400 seeded hour-long
+# rounds per trader. Careless clicking loses to the visible costs: the fee, each company's spread, borrowing fees and
+# margin calls. Attentive play wins because news, events, earnings and orders move prices in ways players can see
+# coming, and the more of it a player reads, the more they make.
+
 - type: exchangeSettings
   id: Default
+  fee: 0.022
+  valueReversion: 0.02
+  earningsMaxShock: 0.4
+  newsFadeChance: 0.3
+  borrowFee: 0.001
+  maintenanceMargin: 1.2
+  orderMaxBoost: 0.1
+  orderTickCap: 0.02
+  orderHeadlineAt: 0.025

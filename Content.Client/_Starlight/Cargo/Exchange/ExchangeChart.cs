@@ -5,7 +5,7 @@ using Robust.Client.UserInterface;
 namespace Content.Client._Starlight.Cargo.Exchange;
 
 /// <summary>
-/// A price line, used both as the big chart and as the small sparkline next to each company.
+/// A small price line, drawn next to each company on the watchlist.
 /// </summary>
 public sealed class ExchangeChart : Control
 {

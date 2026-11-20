@@ -1,7 +1,11 @@
 using System.Linq;
+using Content.Server.Cargo.Components;
 using Content.Server.GameTicking;
 using Content.Server.GameTicking.Events;
 using Content.Shared._Starlight.Cargo.Exchange;
+using Content.Shared._Starlight.Time;
+using Content.Shared.Cargo;
+using Content.Shared.Cargo.Prototypes;
 using Content.Shared.GameTicking;
 using Content.Shared.GameTicking.Components;
 using Robust.Server.GameObjects;
@@ -12,24 +16,25 @@ using Robust.Shared.Timing;
 namespace Content.Server._Starlight.Cargo.Exchange;
 
 /// <summary>
-/// Runs the round's market on the Guild Exchange: ticks prices, posts news, reacts to announced station events and
-/// settles cargo's shares at round end. Trading is in the other half of this system.
+/// Runs the round's market on the Guild Exchange: ticks prices, puts news on the wire, reacts to announced station
+/// events and cargo orders, and keeps every open terminal up to date. Trading is in the other half of this system.
 /// </summary>
 public sealed partial class GuildExchangeSystem : EntitySystem
 {
     [Dependency] private IGameTiming _timing = default!;
     [Dependency] private IPrototypeManager _proto = default!;
     [Dependency] private IRobustRandom _random = default!;
-    [Dependency] private GameTicker _ticker = default!;
     [Dependency] private UserInterfaceSystem _ui = default!;
+    [Dependency] private SharedTimeSystem _time = default!;
 
     private static readonly ProtoId<ExchangeSettingsPrototype> SettingsId = "Default";
+    private static readonly ProtoId<ExchangeSuppliersPrototype> SuppliersId = "Default";
 
     private ExchangeSettingsPrototype _settings = default!;
     private TimeSpan _nextTick;
-    private TimeSpan _nextSectorNews;
+    private TimeSpan _lastTick;
     private readonly List<ExchangeNewsState> _newsWire = new();
-    private readonly List<(int Tick, string Company)> _probes = new();
+    private readonly List<CargoOrderData> _ordersToCheck = new();
 
     /// <summary>
     /// This round's market, made when the round starts.
@@ -37,6 +42,11 @@ public sealed partial class GuildExchangeSystem : EntitySystem
     public ExchangeMarket? Market { get; private set; }
 
     public ExchangeSettingsPrototype Settings => _settings;
+
+    /// <summary>
+    /// The news wire, newest first.
+    /// </summary>
+    public IReadOnlyList<ExchangeNewsState> NewsWire => _newsWire;
 
     public override void Initialize()
     {
@@ -68,7 +78,7 @@ public sealed partial class GuildExchangeSystem : EntitySystem
     {
         Market = null;
         _newsWire.Clear();
-        _probes.Clear();
+        _ordersToCheck.Clear();
         ResetAccounts();
     }
 
@@ -77,19 +87,33 @@ public sealed partial class GuildExchangeSystem : EntitySystem
     /// </summary>
     public void StartMarket(int seed)
     {
-        Market = new ExchangeMarket(_proto.EnumeratePrototypes<ExchangeCompanyPrototype>(), seed);
+        Market = new ExchangeMarket(_proto, _settings, seed);
         _newsWire.Clear();
-        _probes.Clear();
+        _ordersToCheck.Clear();
         ResetAccounts();
+        _lastTick = _timing.CurTime;
         _nextTick = _timing.CurTime + _settings.TickInterval;
-        _nextSectorNews = _timing.CurTime + NextSectorNewsDelay();
+    }
+
+    /// <summary>
+    /// The game time a market tick happens (or happened) at, counted from the latest one.
+    /// </summary>
+    public TimeSpan TickTime(int tick)
+    {
+        return _lastTick + _settings.TickInterval * (tick - (Market?.Ticks ?? 0));
     }
 
     public override void Update(float frameTime)
     {
         base.Update(frameTime);
 
-        if (Market == null || _timing.CurTime < _nextTick)
+        if (Market == null)
+            return;
+
+        if (_ordersToCheck.Count > 0)
+            CheckCargoOrders();
+
+        if (_timing.CurTime < _nextTick)
             return;
 
         _nextTick += _settings.TickInterval;
@@ -97,38 +121,18 @@ public sealed partial class GuildExchangeSystem : EntitySystem
     }
 
     /// <summary>
-    /// Moves the market on by one tick: prices, investigation verdicts and sector news.
+    /// Moves the market on by one tick, then settles what that means for every account.
     /// </summary>
     public void Tick()
     {
         if (Market is not { } market)
             return;
 
-        market.Tick(_settings);
-
-        for (var i = _probes.Count - 1; i >= 0; i--)
-        {
-            if (_probes[i].Tick > market.Ticks)
-                continue;
-
-            Verdict(_probes[i].Company);
-            _probes.RemoveAt(i);
-        }
-
-        if (_timing.CurTime >= _nextSectorNews)
-        {
-            _nextSectorNews = _timing.CurTime + NextSectorNewsDelay();
-            SectorNews();
-        }
-
+        market.Tick();
+        _lastTick = _timing.CurTime;
+        TickAccounts();
+        PostMarketNews();
         RefreshAll();
-    }
-
-    private TimeSpan NextSectorNewsDelay()
-    {
-        var min = _settings.SectorNewsMin.TotalSeconds;
-        var max = _settings.SectorNewsMax.TotalSeconds;
-        return TimeSpan.FromSeconds(min + (max - min) * (Market?.NextFloat() ?? 0.5f));
     }
 
     [SubscribeLocalEvent]
@@ -139,10 +143,8 @@ public sealed partial class GuildExchangeSystem : EntitySystem
 
         foreach (var shock in _proto.EnumeratePrototypes<ExchangeShockPrototype>())
         {
-            if (!shock.Rules.Contains(args.RuleId))
-                continue;
-
-            ApplyShock(shock);
+            if (shock.Rules.Contains(args.RuleId))
+                ApplyShock(shock);
         }
     }
 
@@ -154,99 +156,177 @@ public sealed partial class GuildExchangeSystem : EntitySystem
         if (Market is not { } market)
             return;
 
-        var headline = Loc.GetString(shock.Headline);
-        foreach (var (company, size) in shock.Shocks)
-        {
-            market.QueueShock(company, size);
-        }
-
-        var tickers = shock.Shocks.Keys
-            .Select(c => market.Companies.TryGetValue(c, out var co) ? co.Proto.Ticker : null)
-            .Where(t => t != null);
-        PostNews(string.Join(" ", tickers), headline, false);
+        market.ApplyShock(shock);
+        PostMarketNews();
         RefreshAll();
     }
 
     /// <summary>
-    /// A story about one company. Some are only rumours, and a quarter of those are false; some are investigations
-    /// whose verdict comes a few ticks later.
+    /// Orders are offered to other systems before cargo charges for them, and can still fail after that, so they are
+    /// only counted once cargo has approved and paid.
     /// </summary>
-    private void SectorNews()
+    [SubscribeLocalEvent]
+    private void OnFulfillCargoOrder(ref FulfillCargoOrderEvent args)
     {
-        if (Market is not { } market || market.Companies.Count == 0)
-            return;
-
-        var company = market.Companies.Values.ElementAt(market.Next(0, market.Companies.Count));
-        var name = Loc.GetString(company.Proto.Name);
-
-        if (market.NextFloat() < _settings.ProbeChance)
-        {
-            _probes.Add((market.Ticks + market.Next(_settings.ProbeMinTicks, _settings.ProbeMaxTicks + 1), company.Proto.ID));
-            PostNews(company.Proto.Ticker, Loc.GetString("guild-exchange-news-probe", ("company", name)), false);
-            return;
-        }
-
-        var good = market.NextFloat() < 0.5f;
-        var stories = good ? company.Proto.GoodNews : company.Proto.BadNews;
-        if (stories.Count == 0)
-            return;
-
-        var story = Loc.GetString(stories[market.Next(0, stories.Count)], ("company", name));
-        var rumour = market.NextFloat() < _settings.RumourChance;
-        PostNews(company.Proto.Ticker, story, rumour);
-
-        if (rumour && market.NextFloat() < _settings.FalseRumourChance)
-            return;
-
-        market.QueueShock(company.Proto.ID, good ? company.Proto.NewsShock : -company.Proto.NewsShock);
+        if (Market != null)
+            _ordersToCheck.Add(args.Order);
     }
 
-    private void Verdict(string companyId)
+    private void CheckCargoOrders()
     {
-        if (Market is not { } market || !market.Companies.TryGetValue(companyId, out var company))
+        foreach (var order in _ordersToCheck)
+        {
+            if (order.Approved)
+                RecordCargoOrder(order.Product, order.Price * order.OrderQuantity);
+        }
+
+        _ordersToCheck.Clear();
+        PostMarketNews();
+    }
+
+    /// <summary>
+    /// The company that supplies a cargo product.
+    /// </summary>
+    public string SupplierOf(ProtoId<CargoProductPrototype> product)
+    {
+        var suppliers = _proto.Index(SuppliersId);
+        if (suppliers.Products.TryGetValue(product, out var company))
+            return company;
+
+        if (_proto.Resolve(product, out var proto) && suppliers.Categories.TryGetValue(proto.Category, out company))
+            return company;
+
+        return suppliers.Default;
+    }
+
+    /// <summary>
+    /// A paid cargo order: its supplier's order book fills a little.
+    /// </summary>
+    public void RecordCargoOrder(ProtoId<CargoProductPrototype> product, int spend)
+    {
+        Market?.RecordOrder(SupplierOf(product), spend);
+    }
+
+    /// <summary>
+    /// Puts what the market said since last time on the wire, and pays any dividends it declared.
+    /// </summary>
+    private void PostMarketNews()
+    {
+        if (Market is not { } market)
             return;
 
-        var cleared = market.NextFloat() < 0.5f;
-        var name = Loc.GetString(company.Proto.Name);
-        PostNews(company.Proto.Ticker,
-            Loc.GetString(cleared ? "guild-exchange-news-probe-cleared" : "guild-exchange-news-probe-guilty", ("company", name)),
-            false);
-        market.QueueShock(companyId, cleared ? company.Proto.NewsShock : -2f * company.Proto.NewsShock);
+        foreach (var item in market.TakeNews())
+        {
+            if (item.Kind == ExchangeNewsKind.Dividend && item.Company != null)
+                PayDividend(item.Company, item.Amount);
+
+            PostNews(TickerFor(item), NewsText(item), item.Kind == ExchangeNewsKind.Rumour);
+        }
+    }
+
+    private string? TickerFor(ExchangeNewsItem item)
+    {
+        if (Market is not { } market)
+            return null;
+
+        if (item.Company != null && market.Companies.TryGetValue(item.Company, out var company))
+            return company.Proto.Ticker;
+
+        if (item.Factor != null && _proto.Resolve<ExchangeFactorPrototype>(item.Factor, out var factor))
+            return factor.Tag;
+
+        if (item.Moves is { Count: > 0 } moves)
+        {
+            return string.Join(" ", moves.Keys
+                .Select(c => market.Companies.TryGetValue(c, out var co) ? co.Proto.Ticker : null)
+                .Where(t => t != null));
+        }
+
+        return null;
+    }
+
+    private string NewsText(ExchangeNewsItem item)
+    {
+        var name = Market != null && item.Company != null && Market.Companies.TryGetValue(item.Company, out var company)
+            ? Loc.GetString(company.Proto.Name)
+            : string.Empty;
+
+        return Loc.GetString(item.Text,
+            ("company", name),
+            ("actual", item.Actual.ToString("0.00")),
+            ("consensus", item.Consensus.ToString("0.00")),
+            ("amount", item.Amount.ToString("0.00")));
     }
 
     private void PostNews(string? ticker, string text, bool unconfirmed)
     {
-        _newsWire.Insert(0, new ExchangeNewsState(_ticker.RoundDuration(), ticker, text, unconfirmed));
+        _newsWire.Insert(0, new ExchangeNewsState(_timing.CurTime, ticker, text, unconfirmed));
         if (_newsWire.Count > _settings.NewsKept)
             _newsWire.RemoveAt(_newsWire.Count - 1);
     }
 
     /// <summary>
-    /// The news wire, newest first.
+    /// A time as players see it everywhere on the exchange: station time.
     /// </summary>
-    public IReadOnlyList<ExchangeNewsState> NewsWire => _newsWire;
+    public string StationTime(TimeSpan curTime)
+    {
+        return ExchangeTime.Format(_time, curTime);
+    }
 
     private GuildExchangeBuiState BuildState()
     {
-        var companies = new List<ExchangeCompanyState>();
-        if (Market is { } market)
+        var state = new GuildExchangeBuiState
         {
-            foreach (var company in market.Companies.Values)
+            Trades = new List<ExchangeTradeLogState>(_tradeLog),
+            News = new List<ExchangeNewsState>(_newsWire),
+            Fee = _settings.Fee,
+            BorrowFee = _settings.BorrowFee,
+            ShortMargin = _settings.ShortMargin,
+            MaintenanceMargin = _settings.MaintenanceMargin,
+            MaxOrders = _settings.MaxOpenOrders,
+        };
+
+        if (Market is not { } market)
+            return state;
+
+        foreach (var company in market.Companies.Values)
+        {
+            var proto = company.Proto;
+            var candles = company.Candles;
+            state.Companies.Add(new ExchangeCompanyState
             {
-                companies.Add(new ExchangeCompanyState(company.Proto.ID,
-                    company.Proto.Ticker,
-                    Loc.GetString(company.Proto.Name),
-                    Loc.GetString(company.Proto.Description),
-                    Loc.GetString(company.Proto.Sector),
-                    company.Price,
-                    company.Proto.Price,
-                    company.Proto.Liquidity,
-                    new List<float>(company.History)));
+                Id = proto.ID,
+                Ticker = proto.Ticker,
+                Name = Loc.GetString(proto.Name),
+                Description = Loc.GetString(proto.Description),
+                Sector = Loc.GetString(proto.Sector),
+                Price = company.Price,
+                Open = proto.Price,
+                Bid = ExchangeMath.Bid(company.Price, proto.Spread),
+                Ask = ExchangeMath.Ask(company.Price, proto.Spread),
+                Spread = proto.Spread,
+                Volume = candles.Count > 0 ? candles[^1].Volume : 0f,
+                Spark = candles.Skip(Math.Max(0, candles.Count - _settings.SparkLength)).Select(c => c.Close).ToList(),
+            });
+        }
+
+        foreach (var report in market.Earnings)
+        {
+            state.Calendar.Add(new ExchangeCalendarState(market.Companies[report.Company].Proto.Ticker, TickTime(report.Tick),
+                false, report.Consensus, report.Actual, 0f));
+        }
+
+        foreach (var company in market.Companies.Values)
+        {
+            if (company.Proto.Dividend > 0f)
+            {
+                state.Calendar.Add(new ExchangeCalendarState(company.Proto.Ticker, TickTime(market.NextDividendTick), true, 0f,
+                    null, company.Price * company.Proto.Dividend));
             }
         }
 
-        return new GuildExchangeBuiState(companies, new List<ExchangeNewsState>(_newsWire), new List<string>(_tradeLog),
-            _settings.Fee, _settings.Spread);
+        state.Calendar.Sort((a, b) => a.Time.CompareTo(b.Time));
+        return state;
     }
 
     private void RefreshAll()
@@ -261,7 +341,22 @@ public sealed partial class GuildExchangeSystem : EntitySystem
             foreach (var actor in _ui.GetActors(uid, GuildExchangeUiKey.Key).ToList())
             {
                 SendAccount((uid, comp), actor, null);
+                SendChart((uid, comp), actor);
             }
         }
+    }
+
+    private void SendChart(Entity<GuildExchangeComponent> ent, EntityUid actor)
+    {
+        if (Market is not { } market || !_watching.TryGetValue(actor, out var companyId)
+            || !market.Companies.TryGetValue(companyId, out var company))
+        {
+            return;
+        }
+
+        _ui.ServerSendUiMessage(ent.Owner, GuildExchangeUiKey.Key,
+            new GuildExchangeChartMessage(companyId, new List<ExchangeCandle>(company.Candles), TickTime(market.Ticks),
+                _settings.TickInterval),
+            actor);
     }
 }

@@ -28,49 +28,56 @@ public sealed partial class GuildExchangeSystem
     [Dependency] private StationSystem _station = default!;
 
     /// <summary>
-    /// Shares and cash held through the exchange. Personal accounts belong to an ID card, cargo's to the station.
+    /// Accounts by owner: an ID card for personal accounts, the station for cargo's.
     /// </summary>
-    public sealed class ExchangeAccount(bool cargo, string holder)
-    {
-        public readonly bool Cargo = cargo;
-        public string Holder = holder;
-
-        /// <summary>
-        /// The station account a cargo account trades through.
-        /// </summary>
-        public ProtoId<CargoAccountPrototype> CargoAccount = "Cargo";
-
-        /// <summary>
-        /// Spesos deposited and not yet paid out. Personal accounts only; cargo trades straight from its budget.
-        /// </summary>
-        public int Cash;
-
-        /// <summary>
-        /// Shares per company, with what was paid for the ones still held.
-        /// </summary>
-        public readonly Dictionary<string, (int Shares, int Cost)> Holdings = new();
-
-        public TimeSpan NextTrade;
-        public int Paid;
-        public int Received;
-    }
-
     private readonly Dictionary<EntityUid, ExchangeAccount> _accounts = new();
     private readonly Dictionary<EntityUid, ExchangeAccountKind> _selected = new();
-    private readonly List<string> _tradeLog = new();
+    private readonly Dictionary<EntityUid, string> _watching = new();
+    private readonly List<ExchangeTradeLogState> _tradeLog = new();
+
+    private sealed class CashWallet(ExchangeAccount account) : IExchangeWallet
+    {
+        public long Balance => account.Cash;
+
+        public void Add(long amount) => account.Cash += amount;
+    }
+
+    private sealed class BankWallet(CargoSystem cargo, EntityUid station, ProtoId<CargoAccountPrototype> bank) : IExchangeWallet
+    {
+        public long Balance => cargo.GetBalanceFromAccount(station, bank);
+
+        public void Add(long amount) => cargo.UpdateBankAccount(station, (int) Math.Clamp(amount, int.MinValue, int.MaxValue), bank);
+    }
 
     private void ResetAccounts()
     {
         _accounts.Clear();
         _selected.Clear();
+        _watching.Clear();
         _tradeLog.Clear();
+    }
+
+    private IExchangeWallet WalletOf(EntityUid owner, ExchangeAccount account)
+    {
+        return account.Cargo ? new BankWallet(_cargo, owner, account.CargoAccount) : new CashWallet(account);
     }
 
     [SubscribeLocalEvent]
     private void OnUiOpened(Entity<GuildExchangeComponent> ent, ref BoundUIOpenedEvent args)
     {
+        if (Market is { } market && !_watching.ContainsKey(args.Actor) && market.Companies.Count > 0)
+            _watching[args.Actor] = market.Companies.Keys.First();
+
         _ui.SetUiState(ent.Owner, GuildExchangeUiKey.Key, BuildState());
         SendAccount(ent, args.Actor, null);
+        SendChart(ent, args.Actor);
+    }
+
+    [SubscribeLocalEvent]
+    private void OnUiClosed(Entity<GuildExchangeComponent> ent, ref BoundUIClosedEvent args)
+    {
+        if (ent.Comp.FullBudgetBy == args.Actor)
+            Relock(ent, args.Actor);
     }
 
     [SubscribeLocalEvent]
@@ -81,12 +88,37 @@ public sealed partial class GuildExchangeSystem
     }
 
     [SubscribeLocalEvent]
-    private void OnTrade(Entity<GuildExchangeComponent> ent, ref GuildExchangeTradeMessage args)
+    private void OnSelectCompany(Entity<GuildExchangeComponent> ent, ref GuildExchangeSelectCompanyMessage args)
+    {
+        if (Market is not { } market || !market.Companies.ContainsKey(args.Company))
+            return;
+
+        _watching[args.Actor] = args.Company;
+        SendChart(ent, args.Actor);
+    }
+
+    [SubscribeLocalEvent]
+    private void OnOrder(Entity<GuildExchangeComponent> ent, ref GuildExchangeOrderMessage args)
     {
         var kind = _selected.GetValueOrDefault(args.Actor, ExchangeAccountKind.Personal);
-        var notice = TryTrade(ent, args.Actor, kind, args.Company, args.Shares);
-        _ui.SetUiState(ent.Owner, GuildExchangeUiKey.Key, BuildState());
+        var notice = args.Type == ExchangeOrderType.Limit
+            ? TryPlaceLimit(ent, args.Actor, kind, args.Company, args.Side == ExchangeOrderSide.Buy, args.Shares, args.Limit)
+            : TryOrder(ent, args.Actor, kind, args.Side, args.Company, args.Shares);
+        RefreshAll();
         SendAccount(ent, args.Actor, notice);
+    }
+
+    [SubscribeLocalEvent]
+    private void OnCancelOrder(Entity<GuildExchangeComponent> ent, ref GuildExchangeCancelOrderMessage args)
+    {
+        var kind = _selected.GetValueOrDefault(args.Actor, ExchangeAccountKind.Personal);
+        if (AccountFor(ent, args.Actor, kind, out _) is { } account && ExchangeLedger.CancelLimit(account, args.Id))
+        {
+            _adminLog.Add(LogType.Action, LogImpact.Low,
+                $"{ToPrettyString(args.Actor):user} cancelled limit order {args.Id} on the {(account.Cargo ? "cargo" : "personal")} exchange account at {ToPrettyString(ent):machine}");
+        }
+
+        SendAccount(ent, args.Actor, null);
     }
 
     [SubscribeLocalEvent]
@@ -96,10 +128,9 @@ public sealed partial class GuildExchangeSystem
     }
 
     [SubscribeLocalEvent]
-    private void OnUiClosed(Entity<GuildExchangeComponent> ent, ref BoundUIClosedEvent args)
+    private void OnWithdraw(Entity<GuildExchangeComponent> ent, ref GuildExchangeWithdrawMessage args)
     {
-        if (ent.Comp.FullBudgetBy == args.Actor)
-            Relock(ent, args.Actor);
+        SendAccount(ent, args.Actor, Withdraw(ent, args.Actor));
     }
 
     /// <summary>
@@ -139,12 +170,6 @@ public sealed partial class GuildExchangeSystem
     }
 
     [SubscribeLocalEvent]
-    private void OnWithdraw(Entity<GuildExchangeComponent> ent, ref GuildExchangeWithdrawMessage args)
-    {
-        SendAccount(ent, args.Actor, Withdraw(ent, args.Actor));
-    }
-
-    [SubscribeLocalEvent]
     private void OnInteractUsing(Entity<GuildExchangeComponent> ent, ref InteractUsingEvent args)
     {
         if (args.Handled || !TryComp<StackComponent>(args.Used, out var stack) || stack.StackTypeId != ent.Comp.CashStack)
@@ -170,9 +195,16 @@ public sealed partial class GuildExchangeSystem
     /// </summary>
     public ExchangeAccount? GetPersonalAccount(EntityUid user)
     {
+        return GetPersonalAccount(user, out _);
+    }
+
+    private ExchangeAccount? GetPersonalAccount(EntityUid user, out EntityUid owner)
+    {
+        owner = default;
         if (!_idCard.TryFindIdCard(user, out var id))
             return null;
 
+        owner = id;
         if (!_accounts.TryGetValue(id, out var account))
         {
             account = new ExchangeAccount(false, id.Comp.FullName ?? Name(user));
@@ -201,27 +233,103 @@ public sealed partial class GuildExchangeSystem
         return account;
     }
 
+    private ExchangeAccount? AccountFor(Entity<GuildExchangeComponent> ent, EntityUid actor, ExchangeAccountKind kind, out EntityUid owner)
+    {
+        if (kind == ExchangeAccountKind.Cargo)
+            return _access.IsAllowed(actor, ent) ? GetCargoAccount(ent, out owner) : AccountMissing(out owner);
+        return GetPersonalAccount(actor, out owner);
+    }
+
+    private static ExchangeAccount? AccountMissing(out EntityUid owner)
+    {
+        owner = default;
+        return null;
+    }
+
     /// <summary>
-    /// Buys (positive) or sells (negative) shares for the actor. Returns why it failed, or null if it went through.
+    /// Buys (positive) or sells (negative) shares at the market. Returns why it failed, or null if it went through.
     /// </summary>
     public string? TryTrade(Entity<GuildExchangeComponent> ent, EntityUid actor, ExchangeAccountKind kind, string companyId, int shares)
     {
-        if (Market is not { } market || !market.Companies.TryGetValue(companyId, out var company) || shares == 0)
+        return TryOrder(ent, actor, kind, shares > 0 ? ExchangeOrderSide.Buy : ExchangeOrderSide.Sell, companyId, Math.Abs(shares));
+    }
+
+    /// <summary>
+    /// A market order: buy, sell, short or cover. Returns why it failed, or null if it went through.
+    /// </summary>
+    public string? TryOrder(Entity<GuildExchangeComponent> ent, EntityUid actor, ExchangeAccountKind kind, ExchangeOrderSide side,
+        string companyId, int shares)
+    {
+        if (Market is not { } market || !market.Companies.TryGetValue(companyId, out var company) || shares <= 0)
             return Loc.GetString("guild-exchange-closed");
 
-        var station = EntityUid.Invalid;
-        var account = kind == ExchangeAccountKind.Cargo ? GetCargoAccount(ent, out station) : GetPersonalAccount(actor);
+        if (CheckAccount(ent, actor, kind, out var owner, out var fullBudget) is { } error)
+            return error;
+
+        var account = _accounts[owner];
+        var wallet = WalletOf(owner, account);
+        long? cap = account.Cargo && !fullBudget ? ExchangeLedger.CapLeft(account, wallet.Balance, _settings.CargoCap) : null;
+
+        var result = side switch
+        {
+            ExchangeOrderSide.Buy => ExchangeLedger.Buy(market, account, wallet, companyId, shares, cap),
+            ExchangeOrderSide.Sell => ExchangeLedger.Sell(market, account, wallet, companyId, shares),
+            ExchangeOrderSide.Short => ExchangeLedger.Short(market, account, wallet, companyId, shares, cap),
+            _ => ExchangeLedger.Cover(market, account, wallet, companyId, shares),
+        };
+
+        if (!result.Ok)
+            return Loc.GetString(result.Error!);
+
+        account.NextTrade = _timing.CurTime + _settings.TradeCooldown;
+        LogTrade(ent, actor, account, side, company.Proto.Ticker, result, fullBudget ? "whole budget unlocked" : null);
+        return null;
+    }
+
+    /// <summary>
+    /// Leaves a limit order to buy or sell when the price reaches <paramref name="limit"/>.
+    /// </summary>
+    public string? TryPlaceLimit(Entity<GuildExchangeComponent> ent, EntityUid actor, ExchangeAccountKind kind, string companyId,
+        bool buy, int shares, float limit)
+    {
+        if (Market is not { } market || !market.Companies.TryGetValue(companyId, out var company))
+            return Loc.GetString("guild-exchange-closed");
+
+        if (CheckAccount(ent, actor, kind, out var owner, out _) is { } error)
+            return error;
+
+        var account = _accounts[owner];
+        var result = ExchangeLedger.PlaceLimit(market, account, companyId, buy, shares, limit, actor);
+        if (!result.Ok)
+            return Loc.GetString(result.Error!);
+
+        account.NextTrade = _timing.CurTime + _settings.TradeCooldown;
+        _adminLog.Add(LogType.Action, LogImpact.Low,
+            $"{ToPrettyString(actor):user} placed a limit order to {(buy ? "buy" : "sell")} {shares} {company.Proto.Ticker} at {limit:0.00} on the {(account.Cargo ? "cargo" : "personal")} account at {ToPrettyString(ent):machine}");
+        return null;
+    }
+
+    /// <summary>
+    /// Finds the account to trade and checks access and cooldown. Returns why not, or null.
+    /// </summary>
+    private string? CheckAccount(Entity<GuildExchangeComponent> ent, EntityUid actor, ExchangeAccountKind kind, out EntityUid owner,
+        out bool fullBudget)
+    {
+        fullBudget = false;
+        if (kind == ExchangeAccountKind.Cargo && !_access.IsAllowed(actor, ent))
+        {
+            owner = default;
+            return Loc.GetString("guild-exchange-no-access");
+        }
+
+        var account = AccountFor(ent, actor, kind, out owner);
         if (account == null)
             return Loc.GetString(kind == ExchangeAccountKind.Cargo ? "guild-exchange-no-station" : "guild-exchange-no-id");
-
-        if (kind == ExchangeAccountKind.Cargo && !_access.IsAllowed(actor, ent))
-            return Loc.GetString("guild-exchange-no-access");
 
         if (_timing.CurTime < account.NextTrade)
             return Loc.GetString("guild-exchange-cooldown");
 
         // The unlock belongs to the quartermaster who made it; anyone else trading cargo locks it again.
-        var fullBudget = false;
         if (kind == ExchangeAccountKind.Cargo && ent.Comp.FullBudgetBy is { } unlockedBy)
         {
             if (unlockedBy == actor && HasFullBudgetAccess(ent, actor))
@@ -230,78 +338,90 @@ public sealed partial class GuildExchangeSystem
                 Relock(ent, actor);
         }
 
-        var proto = company.Proto;
-        var held = account.Holdings.GetValueOrDefault(companyId);
-        int money;
-        string verb;
-        float newPrice;
-
-        if (shares > 0)
-        {
-            (money, newPrice) = ExchangeMath.Buy(company.Price, shares, proto.Liquidity, _settings.Spread, _settings.Fee);
-            if (account.Cargo)
-            {
-                var balance = _cargo.GetBalanceFromAccount(station, ent.Comp.Account);
-                if (money > balance)
-                    return Loc.GetString("guild-exchange-no-funds");
-                if (!fullBudget && money > CargoCapLeft(account, balance))
-                    return Loc.GetString("guild-exchange-cap");
-                _cargo.UpdateBankAccount(station, -money, ent.Comp.Account);
-            }
-            else
-            {
-                if (money > account.Cash)
-                    return Loc.GetString("guild-exchange-no-funds");
-                account.Cash -= money;
-            }
-
-            account.Holdings[companyId] = (held.Shares + shares, held.Cost + money);
-            account.Paid += money;
-            verb = "bought";
-        }
-        else
-        {
-            var selling = -shares;
-            if (selling > held.Shares)
-                return Loc.GetString("guild-exchange-not-enough-shares");
-
-            (money, newPrice) = ExchangeMath.Sell(company.Price, selling, proto.Liquidity, _settings.Spread, _settings.Fee);
-
-            if (account.Cargo)
-                _cargo.UpdateBankAccount(station, money, ent.Comp.Account);
-            else
-                account.Cash += money;
-
-            var costLeft = held.Shares == selling ? 0 : held.Cost - held.Cost * selling / held.Shares;
-            if (held.Shares == selling)
-                account.Holdings.Remove(companyId);
-            else
-                account.Holdings[companyId] = (held.Shares - selling, costLeft);
-            account.Received += money;
-            verb = "sold";
-        }
-
-        company.Price = newPrice;
-        account.NextTrade = _timing.CurTime + _settings.TradeCooldown;
-
-        var trader = account.Cargo ? Loc.GetString("guild-exchange-cargo-trader") : account.Holder;
-        _tradeLog.Insert(0, Loc.GetString(shares > 0 ? "guild-exchange-log-bought" : "guild-exchange-log-sold",
-            ("trader", trader), ("shares", Math.Abs(shares)), ("ticker", proto.Ticker), ("money", money)));
-        if (_tradeLog.Count > _settings.TradeLogKept)
-            _tradeLog.RemoveAt(_tradeLog.Count - 1);
-
-        _adminLog.Add(LogType.Action, fullBudget ? LogImpact.Medium : LogImpact.Low,
-            $"{ToPrettyString(actor):user} {verb} {Math.Abs(shares)} {proto.Ticker} for {money} spesos on the {(account.Cargo ? fullBudget ? "cargo (whole budget unlocked)" : "cargo" : "personal")} account at {ToPrettyString(ent):machine}");
         return null;
     }
 
-    /// <summary>
-    /// How much more of the cargo budget may go into shares.
-    /// </summary>
-    private int CargoCapLeft(ExchangeAccount account, int balance)
+    private void LogTrade(EntityUid machine, EntityUid actor, ExchangeAccount account, ExchangeOrderSide side, string ticker,
+        ExchangeTradeResult result, string? note)
     {
-        var invested = account.Holdings.Values.Sum(h => h.Cost);
-        return Math.Max(0, (int) (_settings.CargoCap * (balance + invested)) - invested);
+        var trader = account.Cargo ? Loc.GetString("guild-exchange-cargo-trader") : account.Holder;
+        var key = side switch
+        {
+            ExchangeOrderSide.Buy => "guild-exchange-log-bought",
+            ExchangeOrderSide.Sell => "guild-exchange-log-sold",
+            ExchangeOrderSide.Short => "guild-exchange-log-shorted",
+            _ => "guild-exchange-log-covered",
+        };
+
+        AddTradeLog(Loc.GetString(key, ("trader", trader), ("shares", result.Shares), ("ticker", ticker), ("money", result.Money)));
+        _adminLog.Add(LogType.Action, note != null ? LogImpact.Medium : LogImpact.Low,
+            $"{ToPrettyString(actor):user} {side.ToString().ToLowerInvariant()} {result.Shares} {ticker} for {result.Money} spesos on the {(account.Cargo ? "cargo" : "personal")} account{(note != null ? $" ({note})" : "")} at {ToPrettyString(machine):machine}");
+    }
+
+    private void AddTradeLog(string text)
+    {
+        _tradeLog.Insert(0, new ExchangeTradeLogState(_timing.CurTime, text));
+        if (_tradeLog.Count > _settings.TradeLogKept)
+            _tradeLog.RemoveAt(_tradeLog.Count - 1);
+    }
+
+    /// <summary>
+    /// Each tick: borrowing fees, margin calls and limit orders.
+    /// </summary>
+    private void TickAccounts()
+    {
+        if (Market is not { } market)
+            return;
+
+        foreach (var (owner, account) in _accounts)
+        {
+            if (account.Shorts.Count == 0 && account.Orders.Count == 0)
+                continue;
+            if (account.Cargo && !HasComp<StationBankAccountComponent>(owner))
+                continue;
+
+            var wallet = WalletOf(owner, account);
+            ExchangeLedger.ChargeBorrowFees(market, account);
+
+            foreach (var (companyId, result) in ExchangeLedger.MarginCalls(market, account, wallet))
+            {
+                var ticker = market.Companies[companyId].Proto.Ticker;
+                var trader = account.Cargo ? Loc.GetString("guild-exchange-cargo-trader") : account.Holder;
+                AddTradeLog(Loc.GetString("guild-exchange-log-margin-call", ("trader", trader), ("shares", result.Shares),
+                    ("ticker", ticker), ("money", result.Money), ("time", StationTime(_timing.CurTime))));
+                _adminLog.Add(LogType.Action, LogImpact.Medium,
+                    $"Guild Exchange margin call covered {result.Shares} {ticker} for {result.Money} spesos on {account.Holder}'s {(account.Cargo ? "cargo" : "personal")} account; {account.WrittenOff} spesos written off so far");
+            }
+
+            foreach (var (order, result) in ExchangeLedger.FillLimits(market, account, wallet,
+                         () => account.Cargo ? ExchangeLedger.CapLeft(account, wallet.Balance, _settings.CargoCap) : null))
+            {
+                var ticker = market.Companies[order.Company].Proto.Ticker;
+                if (result.Ok)
+                {
+                    LogTrade(owner, order.PlacedBy, account, order.Buy ? ExchangeOrderSide.Buy : ExchangeOrderSide.Sell, ticker, result,
+                        "limit order");
+                }
+                else
+                {
+                    _adminLog.Add(LogType.Action, LogImpact.Low,
+                        $"Limit order {order.Id} for {order.Shares} {ticker} on {account.Holder}'s exchange account was cancelled: {result.Error}");
+                }
+            }
+        }
+    }
+
+    private void PayDividend(string companyId, float amount)
+    {
+        foreach (var (owner, account) in _accounts)
+        {
+            if (!account.Longs.ContainsKey(companyId) && !account.Shorts.ContainsKey(companyId))
+                continue;
+            if (account.Cargo && !HasComp<StationBankAccountComponent>(owner))
+                continue;
+
+            ExchangeLedger.PayDividend(account, WalletOf(owner, account), companyId, amount);
+        }
     }
 
     /// <summary>
@@ -314,10 +434,11 @@ public sealed partial class GuildExchangeSystem
         if (account.Cash <= 0)
             return Loc.GetString("guild-exchange-no-funds");
 
-        _stack.SpawnAtPosition(account.Cash, ent.Comp.CashStack, Transform(ent).Coordinates);
+        var amount = (int) Math.Min(account.Cash, int.MaxValue);
+        _stack.SpawnAtPosition(amount, ent.Comp.CashStack, Transform(ent).Coordinates);
         _adminLog.Add(LogType.Action, LogImpact.Low,
-            $"{ToPrettyString(actor):user} withdrew {account.Cash} spesos from their Guild Exchange account at {ToPrettyString(ent):machine}");
-        account.Cash = 0;
+            $"{ToPrettyString(actor):user} withdrew {amount} spesos from their Guild Exchange account at {ToPrettyString(ent):machine}");
+        account.Cash -= amount;
         return null;
     }
 
@@ -329,45 +450,42 @@ public sealed partial class GuildExchangeSystem
             kind = ExchangeAccountKind.Personal;
 
         var personal = GetPersonalAccount(actor);
-        ExchangeAccount? account;
-        int cash;
-        int? capLeft = null;
         var fullBudget = ent.Comp.FullBudgetBy == actor;
+        var message = new GuildExchangeAccountMessage
+        {
+            Kind = kind,
+            HasId = personal != null,
+            CanTradeCargo = canTradeCargo,
+            Notice = notice,
+            CanUnlockFullBudget = canTradeCargo && HasFullBudgetAccess(ent, actor),
+            FullBudget = fullBudget,
+        };
+
+        ExchangeAccount? account = personal;
+        message.Cash = personal?.Cash ?? 0;
         if (kind == ExchangeAccountKind.Cargo && GetCargoAccount(ent, out var station) is { } cargo)
         {
             account = cargo;
-            cash = _cargo.GetBalanceFromAccount(station, ent.Comp.Account);
-            capLeft = fullBudget ? null : CargoCapLeft(cargo, cash);
+            message.Cash = _cargo.GetBalanceFromAccount(station, cargo.CargoAccount);
+            message.CapLeft = fullBudget ? null : ExchangeLedger.CapLeft(cargo, message.Cash, _settings.CargoCap);
         }
-        else
+
+        if (account != null && Market is { } market)
         {
-            account = personal;
-            cash = personal?.Cash ?? 0;
+            message.Longs = account.Longs.Select(l => new ExchangePositionState(l.Key, l.Value.Shares, l.Value.Cost)).ToList();
+            message.Shorts = account.Shorts.Select(s => new ExchangeShortState(s.Key, s.Value.Shares, s.Value.Collateral,
+                s.Value.Margin, s.Value.Proceeds, s.Value.BorrowPaid, ExchangeLedger.MarginHealth(market, s.Key, s.Value))).ToList();
+            message.Orders = account.Orders.Select(o => new ExchangeOrderState(o.Id, o.Company, o.Buy, o.Shares, o.Limit)).ToList();
+            message.Realised = account.Realised;
+            message.Unrealised = ExchangeLedger.Unrealised(market, account);
         }
 
-        var holdings = account?.Holdings.Select(h => new ExchangeHoldingState(h.Key, h.Value.Shares, h.Value.Cost)).ToList()
-            ?? new List<ExchangeHoldingState>();
-        var profit = account == null ? 0 : account.Received - account.Paid + HoldingsValue(account);
-
-        _ui.ServerSendUiMessage(ent.Owner, GuildExchangeUiKey.Key,
-            new GuildExchangeAccountMessage(kind, personal != null, canTradeCargo, cash, capLeft, holdings, profit, notice,
-                canTradeCargo && HasFullBudgetAccess(ent, actor), fullBudget),
-            actor);
+        _ui.ServerSendUiMessage(ent.Owner, GuildExchangeUiKey.Key, message, actor);
     }
 
     /// <summary>
-    /// What an account's shares are worth at today's prices.
-    /// </summary>
-    private int HoldingsValue(ExchangeAccount account)
-    {
-        if (Market is not { } market)
-            return 0;
-
-        return (int) account.Holdings.Sum(h => market.Companies.TryGetValue(h.Key, out var c) ? c.Price * h.Value.Shares : 0f);
-    }
-
-    /// <summary>
-    /// Cargo's shares are sold at the closing price into its budget; personal cash nobody collected stays with the Guild.
+    /// The closing bell: every short is covered and every share sold. Cargo's money goes back into its budget; personal
+    /// cash nobody collected stays with the Guild.
     /// </summary>
     [SubscribeLocalEvent]
     private void OnRoundEndText(RoundEndTextAppendEvent args)
@@ -375,32 +493,22 @@ public sealed partial class GuildExchangeSystem
         if (Market is not { } market || _accounts.Count == 0)
             return;
 
+        args.AddLine(Loc.GetString("guild-exchange-round-end-bell", ("time", StationTime(_timing.CurTime))));
         foreach (var (owner, account) in _accounts)
         {
-            if (!account.Cargo || account.Paid == 0)
+            if (account.Cargo && !HasComp<StationBankAccountComponent>(owner))
                 continue;
 
-            var total = 0;
-            foreach (var (companyId, holding) in account.Holdings)
+            ExchangeLedger.Settle(market, account, WalletOf(owner, account));
+            if (account.Cargo && account.Traded)
             {
-                if (!market.Companies.TryGetValue(companyId, out var company))
-                    continue;
-                var (proceeds, newPrice) = ExchangeMath.Sell(company.Price, holding.Shares, company.Proto.Liquidity, _settings.Spread, _settings.Fee);
-                company.Price = newPrice;
-                total += proceeds;
+                args.AddLine(Loc.GetString("guild-exchange-round-end-cargo", ("station", account.Holder),
+                    ("profit", account.Realised)));
             }
-
-            account.Holdings.Clear();
-            account.Received += total;
-            if (total > 0 && HasComp<StationBankAccountComponent>(owner))
-                _cargo.UpdateBankAccount(owner, total, account.CargoAccount);
-
-            args.AddLine(Loc.GetString("guild-exchange-round-end-cargo",
-                ("station", account.Holder), ("profit", account.Received - account.Paid)));
         }
 
-        var best = _accounts.Values.Where(a => !a.Cargo && a.Paid > 0).MaxBy(a => a.Received - a.Paid);
+        var best = _accounts.Values.Where(a => !a.Cargo && a.Traded).MaxBy(a => a.Realised);
         if (best != null)
-            args.AddLine(Loc.GetString("guild-exchange-round-end-best", ("name", best.Holder), ("profit", best.Received - best.Paid)));
+            args.AddLine(Loc.GetString("guild-exchange-round-end-best", ("name", best.Holder), ("profit", best.Realised)));
     }
 }

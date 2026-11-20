@@ -53,24 +53,59 @@ public enum ExchangeAccountKind : byte
     Cargo,
 }
 
+[Serializable, NetSerializable]
+public enum ExchangeOrderSide : byte
+{
+    Buy,
+    Sell,
+    Short,
+    Cover,
+}
+
+[Serializable, NetSerializable]
+public enum ExchangeOrderType : byte
+{
+    Market,
+    Limit,
+}
+
+/// <summary>
+/// One tick of one company's trading.
+/// </summary>
+[Serializable, NetSerializable]
+public readonly record struct ExchangeCandle(float Open, float High, float Low, float Close, float Volume);
+
 /// <summary>
 /// One company's line on the board.
 /// </summary>
 [Serializable, NetSerializable]
-public sealed class ExchangeCompanyState(string id, string ticker, string name, string description, string sector,
-    float price, float open, float liquidity, List<float> history)
+public sealed class ExchangeCompanyState
 {
-    public string Id = id;
-    public string Ticker = ticker;
-    public string Name = name;
-    public string Description = description;
-    public string Sector = sector;
-    public float Price = price;
-    public float Open = open;
-    public float Liquidity = liquidity;
-    public List<float> History = history;
+    public string Id = string.Empty;
+    public string Ticker = string.Empty;
+    public string Name = string.Empty;
+    public string Description = string.Empty;
+    public string Sector = string.Empty;
+    public float Price;
+    public float Open;
+    public float Bid;
+    public float Ask;
+    public float Spread;
+
+    /// <summary>
+    /// Shares traded last tick.
+    /// </summary>
+    public float Volume;
+
+    /// <summary>
+    /// Recent closing prices, oldest first.
+    /// </summary>
+    public List<float> Spark = new();
 }
 
+/// <summary>
+/// A wire story. <see cref="Time"/> is a game-time instant, shown as station time.
+/// </summary>
 [Serializable, NetSerializable]
 public sealed class ExchangeNewsState(TimeSpan time, string? ticker, string text, bool unconfirmed)
 {
@@ -80,65 +115,124 @@ public sealed class ExchangeNewsState(TimeSpan time, string? ticker, string text
     public bool Unconfirmed = unconfirmed;
 }
 
+[Serializable, NetSerializable]
+public sealed class ExchangeTradeLogState(TimeSpan time, string text)
+{
+    public TimeSpan Time = time;
+    public string Text = text;
+}
+
+/// <summary>
+/// An earnings report or dividend date on the calendar.
+/// </summary>
+[Serializable, NetSerializable]
+public sealed class ExchangeCalendarState(string ticker, TimeSpan time, bool dividend, float consensus, float? actual, float amount)
+{
+    public string Ticker = ticker;
+    public TimeSpan Time = time;
+    public bool Dividend = dividend;
+    public float Consensus = consensus;
+    public float? Actual = actual;
+    public float Amount = amount;
+}
+
 /// <summary>
 /// The market, shared by everyone looking at the terminal.
 /// </summary>
 [Serializable, NetSerializable]
-public sealed class GuildExchangeBuiState(List<ExchangeCompanyState> companies, List<ExchangeNewsState> news,
-    List<string> trades, float fee, float spread) : BoundUserInterfaceState
+public sealed class GuildExchangeBuiState : BoundUserInterfaceState
 {
-    public List<ExchangeCompanyState> Companies = companies;
-    public List<ExchangeNewsState> News = news;
-    public List<string> Trades = trades;
-    public float Fee = fee;
-    public float Spread = spread;
+    public List<ExchangeCompanyState> Companies = new();
+    public List<ExchangeNewsState> News = new();
+    public List<ExchangeTradeLogState> Trades = new();
+    public List<ExchangeCalendarState> Calendar = new();
+    public float Fee;
+    public float BorrowFee;
+    public float ShortMargin;
+    public float MaintenanceMargin;
+    public int MaxOrders;
 }
 
 [Serializable, NetSerializable]
-public sealed class ExchangeHoldingState(string company, int shares, int cost)
+public sealed class ExchangePositionState(string company, int shares, long cost)
 {
     public string Company = company;
     public int Shares = shares;
-    public int Cost = cost;
+    public long Cost = cost;
+}
+
+[Serializable, NetSerializable]
+public sealed class ExchangeShortState(string company, int shares, long collateral, long margin, long proceeds, long borrowPaid, float health)
+{
+    public string Company = company;
+    public int Shares = shares;
+    public long Collateral = collateral;
+    public long Margin = margin;
+    public long Proceeds = proceeds;
+    public long BorrowPaid = borrowPaid;
+
+    /// <summary>
+    /// Collateral over the cost of covering now.
+    /// </summary>
+    public float Health = health;
+}
+
+[Serializable, NetSerializable]
+public sealed class ExchangeOrderState(int id, string company, bool buy, int shares, float limit)
+{
+    public int Id = id;
+    public string Company = company;
+    public bool Buy = buy;
+    public int Shares = shares;
+    public float Limit = limit;
 }
 
 /// <summary>
 /// The account one viewer is trading with, sent only to them.
 /// </summary>
 [Serializable, NetSerializable]
-public sealed class GuildExchangeAccountMessage(ExchangeAccountKind kind, bool hasId, bool canTradeCargo, int cash,
-    int? capLeft, List<ExchangeHoldingState> holdings, int profit, string? notice, bool canUnlockFullBudget, bool fullBudget)
-    : BoundUserInterfaceMessage
+public sealed class GuildExchangeAccountMessage : BoundUserInterfaceMessage
 {
-    public ExchangeAccountKind Kind = kind;
-    public bool HasId = hasId;
-    public bool CanTradeCargo = canTradeCargo;
+    public ExchangeAccountKind Kind;
+    public bool HasId;
+    public bool CanTradeCargo;
 
     /// <summary>
     /// Spesos the account can spend: deposited cash, or the cargo budget.
     /// </summary>
-    public int Cash = cash;
+    public long Cash;
 
     /// <summary>
-    /// How much more of the cargo budget may go into shares, for the cargo account.
+    /// How much more of the cargo budget may go into shares and shorts, for the cargo account.
     /// </summary>
-    public int? CapLeft = capLeft;
+    public long? CapLeft;
 
-    public List<ExchangeHoldingState> Holdings = holdings;
+    public List<ExchangePositionState> Longs = new();
+    public List<ExchangeShortState> Shorts = new();
+    public List<ExchangeOrderState> Orders = new();
 
-    /// <summary>
-    /// Proceeds minus costs so far, plus what the shares held are worth now.
-    /// </summary>
-    public int Profit = profit;
-
-    public string? Notice = notice;
-
-    public bool CanUnlockFullBudget = canUnlockFullBudget;
+    public long Realised;
+    public long Unrealised;
+    public string? Notice;
+    public bool CanUnlockFullBudget;
 
     /// <summary>
     /// Whether this viewer has the whole cargo budget unlocked.
     /// </summary>
-    public bool FullBudget = fullBudget;
+    public bool FullBudget;
+}
+
+/// <summary>
+/// Candles for the company a viewer is looking at. The last candle closed at <see cref="LastTime"/>.
+/// </summary>
+[Serializable, NetSerializable]
+public sealed class GuildExchangeChartMessage(string company, List<ExchangeCandle> candles, TimeSpan lastTime, TimeSpan interval)
+    : BoundUserInterfaceMessage
+{
+    public string Company = company;
+    public List<ExchangeCandle> Candles = candles;
+    public TimeSpan LastTime = lastTime;
+    public TimeSpan Interval = interval;
 }
 
 [Serializable, NetSerializable]
@@ -147,14 +241,30 @@ public sealed class GuildExchangeSelectAccountMessage(ExchangeAccountKind kind) 
     public ExchangeAccountKind Kind = kind;
 }
 
-/// <summary>
-/// Buy (positive) or sell (negative) shares of a company.
-/// </summary>
 [Serializable, NetSerializable]
-public sealed class GuildExchangeTradeMessage(string company, int shares) : BoundUserInterfaceMessage
+public sealed class GuildExchangeSelectCompanyMessage(string company) : BoundUserInterfaceMessage
 {
     public string Company = company;
+}
+
+/// <summary>
+/// A market order fills now; a limit order (buy or sell only) rests until the price reaches it.
+/// </summary>
+[Serializable, NetSerializable]
+public sealed class GuildExchangeOrderMessage(string company, ExchangeOrderSide side, ExchangeOrderType type, int shares, float limit)
+    : BoundUserInterfaceMessage
+{
+    public string Company = company;
+    public ExchangeOrderSide Side = side;
+    public ExchangeOrderType Type = type;
     public int Shares = shares;
+    public float Limit = limit;
+}
+
+[Serializable, NetSerializable]
+public sealed class GuildExchangeCancelOrderMessage(int id) : BoundUserInterfaceMessage
+{
+    public int Id = id;
 }
 
 /// <summary>

@@ -1,0 +1,158 @@
+# Early warnings. Each first beat is easy to miss; a few minutes later it may turn into a real story, or into
+# nothing. Every kind has its own lean, the same every round, so regular traders can learn which to act on.
+
+# Usually bad news.
+- type: exchangeStory
+  id: CallDelay
+  warning: guild-exchange-story-call-delay
+  outcomes:
+  - weight: 0.25
+    headline: guild-exchange-story-call-delay-good
+    shock: 1.2
+  - weight: 0.45
+    headline: guild-exchange-story-call-delay-bad
+    shock: -1.6
+  - weight: 0.3
+
+# A coin flip, but a big one.
+- type: exchangeStory
+  id: ExecutivesLeaving
+  warning: guild-exchange-story-exec-flight
+  outcomes:
+  - weight: 0.35
+    headline: guild-exchange-story-exec-flight-good
+    shock: 1.4
+  - weight: 0.35
+    headline: guild-exchange-story-exec-flight-bad
+    shock: -1.4
+  - weight: 0.3
+
+# Leans good.
+- type: exchangeStory
+  id: UnusualFiling
+  warning: guild-exchange-story-filing
+  outcomes:
+  - weight: 0.45
+    headline: guild-exchange-story-filing-good
+    shock: 1.2
+  - weight: 0.3
+    headline: guild-exchange-story-filing-bad
+    shock: -1.4
+  - weight: 0.25
+
+# Leans bad.
+- type: exchangeStory
+  id: IdlePlant
+  warning: guild-exchange-story-plant-quiet
+  outcomes:
+  - weight: 0.25
+    headline: guild-exchange-story-plant-quiet-good
+    shock: 0.8
+  - weight: 0.5
+    headline: guild-exchange-story-plant-quiet-bad
+    shock: -1.3
+  - weight: 0.25
+
+# Leans bad.
+- type: exchangeStory
+  id: LawFirm
+  warning: guild-exchange-story-lawyers
+  outcomes:
+  - weight: 0.25
+    headline: guild-exchange-story-lawyers-good
+    shock: 1.0
+  - weight: 0.45
+    headline: guild-exchange-story-lawyers-bad
+    shock: -1.2
+  - weight: 0.3
+
+# Leans good.
+- type: exchangeStory
+  id: FreighterTraffic
+  warning: guild-exchange-story-shipping
+  outcomes:
+  - weight: 0.5
+    headline: guild-exchange-story-shipping-good
+    shock: 1.2
+  - weight: 0.25
+    headline: guild-exchange-story-shipping-bad
+    shock: -1.0
+  - weight: 0.25
+
+# Mostly bad.
+- type: exchangeStory
+  id: AuditorChange
+  warning: guild-exchange-story-auditor
+  outcomes:
+  - weight: 0.2
+    headline: guild-exchange-story-auditor-good
+    shock: 0.8
+  - weight: 0.55
+    headline: guild-exchange-story-auditor-bad
+    shock: -1.6
+  - weight: 0.25
+
+# Leans good.
+- type: exchangeStory
+  id: HiringSpree
+  warning: guild-exchange-story-hiring
+  outcomes:
+  - weight: 0.5
+    headline: guild-exchange-story-hiring-good
+    shock: 1.0
+  - weight: 0.25
+    headline: guild-exchange-story-hiring-bad
+    shock: -1.0
+  - weight: 0.25
+
+# Leans bad.
+- type: exchangeStory
+  id: PressSilence
+  warning: guild-exchange-story-silence
+  outcomes:
+  - weight: 0.25
+    headline: guild-exchange-story-silence-good
+    shock: 1.2
+  - weight: 0.5
+    headline: guild-exchange-story-silence-bad
+    shock: -1.5
+  - weight: 0.25
+
+# Even odds, but the bad ending hurts more.
+- type: exchangeStory
+  id: RegulatorDocuments
+  warning: guild-exchange-story-regulator
+  outcomes:
+  - weight: 0.4
+    headline: guild-exchange-story-regulator-good
+    shock: 0.8
+  - weight: 0.4
+    headline: guild-exchange-story-regulator-bad
+    shock: -2.0
+  - weight: 0.2
+
+# Leans good.
+- type: exchangeStory
+  id: OffBookBlock
+  warning: guild-exchange-story-insider
+  outcomes:
+  - weight: 0.45
+    headline: guild-exchange-story-insider-good
+    shock: 1.2
+  - weight: 0.35
+    headline: guild-exchange-story-insider-bad
+    shock: -1.2
+  - weight: 0.2
+
+# A coin flip.
+- type: exchangeStory
+  id: SurpriseMeeting
+  warning: guild-exchange-story-meeting
+  outcomes:
+  - weight: 0.4
+    headline: guild-exchange-story-meeting-good
+    shock: 1.2
+  - weight: 0.4
+    headline: guild-exchange-story-meeting-bad
+    shock: -1.2
+  - weight: 0.2

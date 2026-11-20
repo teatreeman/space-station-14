@@ -18,7 +18,10 @@ public sealed class GuildExchangeBoundUserInterface(EntityUid owner, Enum uiKey)
         base.Open();
 
         _window = this.CreateWindow<GuildExchangeWindow>();
-        _window.OnTrade += (company, shares) => SendMessage(new GuildExchangeTradeMessage(company, shares));
+        _window.OnSelectCompany += company => SendMessage(new GuildExchangeSelectCompanyMessage(company));
+        _window.OnOrder += (company, side, type, shares, limit) =>
+            SendMessage(new GuildExchangeOrderMessage(company, side, type, shares, limit));
+        _window.OnCancelOrder += id => SendMessage(new GuildExchangeCancelOrderMessage(id));
         _window.OnSelectAccount += kind => SendMessage(new GuildExchangeSelectAccountMessage(kind));
         _window.OnWithdraw += () => SendMessage(new GuildExchangeWithdrawMessage());
         _window.OnFullBudget += enabled => SendMessage(new GuildExchangeFullBudgetMessage(enabled));
@@ -37,7 +40,14 @@ public sealed class GuildExchangeBoundUserInterface(EntityUid owner, Enum uiKey)
     protected override void ReceiveMessage(BoundUserInterfaceMessage message)
     {
         base.ReceiveMessage(message);
-        if (message is GuildExchangeAccountMessage account)
-            _window?.UpdateAccount(account);
+        switch (message)
+        {
+            case GuildExchangeAccountMessage account:
+                _window?.UpdateAccount(account);
+                break;
+            case GuildExchangeChartMessage chart:
+                _window?.UpdateChart(chart);
+                break;
+        }
     }
 }
