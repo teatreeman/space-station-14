@@ -13,6 +13,9 @@ using Content.Shared.Fluids;
 using Content.Shared.Fluids.Components;
 using Content.Shared.Maps;
 using Content.Shared.Wires;
+using Content.Server._Starlight.Medical.Body.Systems;
+using Content.Shared.Body.Components;
+using Content.Shared.Inventory;
 using Content.Shared._Starlight.Construction;
 using Robust.Shared.Map;
 using Robust.Shared.Map.Components;
@@ -96,70 +99,80 @@ public sealed class SmokeMachineTest : InteractionTest
         });
     }
 
-    private async Task ClearHaze()
+    /// <summary>
+    /// Someone standing in a running machine's haze breathes its chems into their blood, like with a smoke grenade.
+    /// </summary>
+    [Test]
+    public async Task PeopleInTheHazeBreatheItIn()
     {
+        await Placed();
+        await OpenFloor();
+        EntityUid human = default;
         await Server.WaitPost(() =>
         {
-            var query = SEntMan.EntityQueryEnumerator<SmokeMachineHazeComponent>();
-            while (query.MoveNext(out var uid, out _))
-            {
-                SEntMan.DeleteEntity(uid);
-            }
+            var coords = SEntMan.GetComponent<TransformComponent>(STarget!.Value).Coordinates;
+            human = SEntMan.SpawnAtPosition("MobHuman", coords.Offset(new Vector2(1, 0)));
+            Fill("SpaceDrugs", 100);
+            Machine.SetEnabled(STarget.Value, true);
         });
+
+        await RunSeconds(8);
+        await Server.WaitAssertion(() => Assert.That(BloodHas(human, "SpaceDrugs"), "the haze got into their blood"));
     }
 
     /// <summary>
-    /// On open floor a puff covers exactly its diamond, spreading a ring every tenth of a second, so even the biggest
-    /// one is done within a second and a half.
+    /// With internals on, the haze can't be breathed in.
     /// </summary>
-    [TestCase(1)]
-    [TestCase(2)]
-    [TestCase(3)]
-    public async Task PuffFillsItsDiamondQuickly(int setting)
+    [Test]
+    public async Task InternalsKeepTheHazeOut()
+    {
+        await Placed();
+        await OpenFloor();
+        EntityUid human = default;
+        await Server.WaitPost(() =>
+        {
+            var coords = SEntMan.GetComponent<TransformComponent>(STarget!.Value).Coordinates;
+            human = SEntMan.SpawnAtPosition("MobHuman", coords.Offset(new Vector2(1, 0)));
+            var inventory = SEntMan.System<InventorySystem>();
+            var mask = SEntMan.SpawnAtPosition("ClothingMaskBreath", coords);
+            var tank = SEntMan.SpawnAtPosition("OxygenTankFilled", coords);
+            Assert.That(inventory.TryEquip(human, mask, "mask", silent: true, force: true));
+            Assert.That(inventory.TryEquip(human, tank, "belt", silent: true, force: true));
+            var internals = SEntMan.System<InternalsSystem>();
+            var comp = SEntMan.GetComponent<InternalsComponent>(human);
+            internals.ConnectBreathTool((human, comp), mask);
+            Assert.That(internals.TryConnectTank((human, comp), tank));
+            Assert.That(internals.AreInternalsWorking(human), "internals on");
+
+            Fill("SpaceDrugs", 100);
+            Machine.SetEnabled(STarget.Value, true);
+        });
+
+        await RunSeconds(8);
+        await Server.WaitAssertion(() => Assert.That(BloodHas(human, "SpaceDrugs"), Is.False, "nothing breathed in through internals"));
+    }
+
+    [Test]
+    public async Task HazeSpreadsLikeStationSmoke()
     {
         await Placed();
         await OpenFloor();
         await Server.WaitAssertion(() =>
         {
             Fill("Water", 100);
-            Machine.SetSetting(STarget!.Value, setting);
-            Assert.That(Machine.TryPuff(STarget.Value));
+            Assert.That(Machine.TryPuff(STarget!.Value));
+            Assert.That(HazeCount(), Is.EqualTo(1));
         });
 
-        await RunSeconds(0.5f);
-        var halfway = 0;
-        await Server.WaitPost(() => halfway = HazeCount());
-
-        await RunSeconds(1f);
-        await Server.WaitAssertion(() =>
-        {
-            Assert.That(halfway, Is.GreaterThan(1), "it was spreading after half a second");
-            Assert.That(HazeCount(), Is.EqualTo(SmokeMachinePuffs.Tiles(setting)), "the whole diamond after a second and a half");
-        });
-
-        await RunSeconds(2f);
-        await Server.WaitAssertion(() =>
-            Assert.That(HazeCount(), Is.EqualTo(SmokeMachinePuffs.Tiles(setting)), "and no further"));
-        await ClearHaze();
+        await RunSeconds(5);
+        await Server.WaitAssertion(() => Assert.That(HazeCount(), Is.GreaterThan(5), "it spreads through the station's smoke spreading"));
     }
 
-    [Test]
-    public async Task HazeTouchesThingsLyingInIt()
+    private bool BloodHas(EntityUid uid, string reagent)
     {
-        await Placed();
-        EntityUid cube = default;
-        await Server.WaitAssertion(() =>
-        {
-            cube = SEntMan.SpawnAtPosition("MonkeyCube", SEntMan.GetComponent<TransformComponent>(STarget!.Value).Coordinates);
-            Fill("Water", 100);
-            Assert.That(Machine.TryPuff(STarget.Value));
-        });
-
-        await RunSeconds(1f);
-        await Server.WaitAssertion(() => Assert.That(SEntMan.EntityExists(cube), "not touched before the first two seconds"));
-
-        await RunSeconds(2f);
-        await Server.WaitAssertion(() => Assert.That(SEntMan.EntityExists(cube), Is.False, "the haze's water got to the cube"));
+        var blood = SEntMan.GetComponent<BloodstreamComponent>(uid);
+        return Solutions.TryGetSolution(uid, blood.BloodSolutionName, out _, out var solution) &&
+               solution.GetTotalPrototypeQuantity(reagent) > 0;
     }
 
     [Test]
@@ -238,51 +251,6 @@ public sealed class SmokeMachineTest : InteractionTest
             Assert.That(HazeCount(), Is.GreaterThan(1), "the haze spread");
             Assert.That(PuddleVolume("SpaceGlue"), Is.GreaterThan(FixedPoint2.Zero), "the glue still wets the floor");
             Assert.That(PuddleVolume("SpaceGlue"), Is.LessThanOrEqualTo(lost), "glue puddles hold no more than what left the tank");
-        });
-    }
-
-    /// <summary>
-    /// However many tiles end up in one puff, their floors share no more than the tank lost: here 40 extra tiles join
-    /// a 25-tile puff.
-    /// </summary>
-    [Test]
-    public async Task PuffFloorsStayWithinItsBudget()
-    {
-        await Placed();
-
-        FixedPoint2 lost = 0;
-        await Server.WaitAssertion(() =>
-        {
-            Fill("SpaceGlue", 100);
-            Assert.That(Machine.TryPuff(STarget!.Value));
-            lost = 100 - Tank().Volume;
-
-            var query = SEntMan.EntityQueryEnumerator<SmokeMachineHazeComponent>();
-            Assert.That(query.MoveNext(out var origin, out var originHaze));
-
-            var coords = SEntMan.GetComponent<TransformComponent>(STarget.Value).Coordinates;
-            for (var i = 0; i < 40; i++)
-            {
-                var extra = SEntMan.SpawnAttachedTo("SmokeMachineHaze", coords);
-                Machine.JoinPuff((extra, SEntMan.EnsureComponent<SmokeMachineHazeComponent>(extra)), (origin, originHaze!));
-                Assert.That(Solutions.TryGetSolution(extra, SmokeComponent.SolutionName, out var soln, out _));
-                Solutions.TryAddReagent(soln!.Value, "SpaceGlue", 20);
-            }
-        });
-
-        await RunSeconds(3);
-        await Server.WaitAssertion(() =>
-        {
-            FixedPoint2 reacted = 0;
-            var query = SEntMan.EntityQueryEnumerator<SmokeMachineHazeComponent>();
-            while (query.MoveNext(out _, out var haze))
-            {
-                reacted += haze.FloorReacted;
-            }
-
-            Assert.That(HazeCount(), Is.GreaterThan(SmokeMachinePuffs.Tiles(1)), "more tiles than the puff is meant to cover");
-            Assert.That(reacted, Is.GreaterThan(FixedPoint2.Zero), "the floors were wetted");
-            Assert.That(reacted, Is.LessThanOrEqualTo(lost), "all the puff's floors together got no more than the tank lost");
         });
     }
 

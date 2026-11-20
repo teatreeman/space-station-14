@@ -310,6 +310,7 @@ public sealed partial class SmokeSystem : EntitySystem
         if (!TryComp<MapGridComponent>(xform.GridUid, out var mapGrid))
             return;
 
+        if (TryComp<Content.Server._Starlight.Chemistry.Components.SmokeMachineHazeComponent>(uid, out var haze)) solution = solution.Clone().SplitSolution(haze.FloorShare); // Starlight: smoke machine haze only wets floors with its share of what left the tank
         var tile = _map.GetTileRef(xform.GridUid.Value, mapGrid, xform.Coordinates);
 
         foreach (var reagentQuantity in solution.Contents.ToArray())

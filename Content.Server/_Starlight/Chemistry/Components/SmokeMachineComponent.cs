@@ -31,10 +31,16 @@ public sealed partial class SmokeMachineComponent : Component
     public int Setting = 1;
 
     /// <summary>
-    /// The biggest puff size.
+    /// The spread amount the smoke gets at each setting. On open floor the station's smoke comes out at about 25, 85
+    /// and 181 tiles with these.
     /// </summary>
     [DataField]
-    public int MaxSetting = 3;
+    public List<int> PuffSpread = new() { 14, 40, 180 };
+
+    /// <summary>
+    /// The biggest puff size.
+    /// </summary>
+    public int MaxSetting => PuffSpread.Count;
 
     /// <summary>
     /// The tank loses one unit for every this many tiles a puff covers.
@@ -67,7 +73,7 @@ public sealed partial class SmokeMachineComponent : Component
     public TimeSpan NextPuff;
 
     /// <summary>
-    /// The smoke a puff is made of.
+    /// The smoke a puff is made of. It should have <see cref="SmokeMachineHazeComponent"/> so it doesn't flood floors.
     /// </summary>
     [DataField]
     public EntProtoId SmokePrototype = "SmokeMachineHaze";
