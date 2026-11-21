@@ -55,10 +55,7 @@ public sealed partial class GuildExchangeSystem : EntitySystem
     }
 
     [SubscribeLocalEvent]
-    private void OnRoundStarting(RoundStartingEvent args)
-    {
-        StartMarket();
-    }
+    private void OnRoundStarting(RoundStartingEvent args) => StartMarket();
 
     [SubscribeLocalEvent]
     private void OnRoundRestart(RoundRestartCleanupEvent args)
@@ -79,10 +76,7 @@ public sealed partial class GuildExchangeSystem : EntitySystem
         _nextTick = _timing.CurTime + _settings.TickInterval;
     }
 
-    private TimeSpan TickTime(int tick)
-    {
-        return _lastTick + _settings.TickInterval * (tick - (_market?.Ticks ?? 0));
-    }
+    private TimeSpan TickTime(int tick) => _lastTick + (_settings.TickInterval * (tick - (_market?.Ticks ?? 0)));
 
     public override void Update(float frameTime)
     {

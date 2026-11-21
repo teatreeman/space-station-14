@@ -38,10 +38,7 @@ public abstract partial class SharedTimeSystem : EntitySystem
     /// Gets a flavorful version of the station time. Shifts start at <see cref="ShiftStart"/> (picked at random
     /// each round) and station time runs 4x faster than real time.
     /// </summary>
-    public (TimeSpan Time, string Date) GetStationTime()
-    {
-        return GetStationTime(_timing.CurTime);
-    }
+    public (TimeSpan Time, string Date) GetStationTime() => GetStationTime(_timing.CurTime);
 
     /// <summary>
     /// The station time and date at a given game time, as <see cref="GetStationTime()"/> shows them.

@@ -66,7 +66,6 @@ public sealed class ExchangeMarket
 
     private readonly IRobustRandom _random;
     private readonly IPrototypeManager _proto;
-    private readonly ExchangeSettingsPrototype _settings;
     private readonly List<(int Tick, string Company, float Shock)> _pending = new();
     private readonly List<(int Tick, string Factor, float Shock)> _pendingFactors = new();
     private readonly List<PendingStory> _stories = new();
@@ -88,12 +87,12 @@ public sealed class ExchangeMarket
 
     public int Ticks { get; private set; }
 
-    public ExchangeSettingsPrototype Settings => _settings;
+    public ExchangeSettingsPrototype Settings { get; }
 
     public ExchangeMarket(IPrototypeManager proto, ExchangeSettingsPrototype settings, IRobustRandom random)
     {
         _proto = proto;
-        _settings = settings;
+        Settings = settings;
         _random = random;
         foreach (var company in proto.EnumeratePrototypes<ExchangeCompanyPrototype>().OrderBy(c => c.ID))
         {
@@ -110,7 +109,7 @@ public sealed class ExchangeMarket
     /// <summary>
     /// The tick of the next dividend date.
     /// </summary>
-    public int NextDividendTick => (Ticks / _settings.DividendEvery + 1) * _settings.DividendEvery;
+    public int NextDividendTick => ((Ticks / Settings.DividendEvery) + 1) * Settings.DividendEvery;
 
     /// <summary>
     /// Hands over the news put out since last asked, oldest first.
@@ -122,15 +121,9 @@ public sealed class ExchangeMarket
         return news;
     }
 
-    private void QueueShock(string company, float shock)
-    {
-        _pending.Add((Ticks + 1, company, shock));
-    }
+    private void QueueShock(string company, float shock) => _pending.Add((Ticks + 1, company, shock));
 
-    private void QueueFactorShock(string factor, float shock)
-    {
-        _pendingFactors.Add((Ticks + 1, factor, shock));
-    }
+    private void QueueFactorShock(string factor, float shock) => _pendingFactors.Add((Ticks + 1, factor, shock));
 
     /// <summary>
     /// Queues an announced station event's moves and puts its headline on the wire.
@@ -152,7 +145,7 @@ public sealed class ExchangeMarket
             foreach (var company in Companies.Values)
             {
                 if (company.Proto.Factors.TryGetValue(factor, out var loading))
-                    moves[company.Proto.ID] = moves.GetValueOrDefault(company.Proto.ID) + size * loading;
+                    moves[company.Proto.ID] = moves.GetValueOrDefault(company.Proto.ID) + (size * loading);
             }
         }
 
@@ -168,26 +161,23 @@ public sealed class ExchangeMarket
         if (spend <= 0 || !Companies.TryGetValue(companyId, out var company))
             return;
 
-        var room = MathF.Max(0f, _settings.OrderTickCap - company.OrderAddedThisTick);
-        var add = MathF.Min(room, spend / _settings.OrderScale * MathF.Max(0f, _settings.OrderMaxBoost - company.OrderBoost));
+        var room = MathF.Max(0f, Settings.OrderTickCap - company.OrderAddedThisTick);
+        var add = MathF.Min(room, spend / Settings.OrderScale * MathF.Max(0f, Settings.OrderMaxBoost - company.OrderBoost));
         company.OrderBoost += add;
         company.OrderAddedThisTick += add;
         company.QuarterOrders += add;
 
-        if (company.OrderBoost >= _settings.OrderHeadlineAt && Ticks - company.LastOrderHeadline >= 10)
+        if (company.OrderBoost >= Settings.OrderHeadlineAt && Ticks - company.LastOrderHeadline >= 10)
         {
             company.LastOrderHeadline = Ticks;
-            _news.Add(new ExchangeNewsItem(ExchangeNewsKind.Orders, Pick(_settings.OrderNews), companyId));
+            _news.Add(new ExchangeNewsItem(ExchangeNewsKind.Orders, Pick(Settings.OrderNews), companyId));
         }
     }
 
     /// <summary>
     /// Players' trades fill at the quoted price and don't move it, but they do show in the volume.
     /// </summary>
-    public void AddVolume(Company company, int shares)
-    {
-        company.TickVolume += Math.Abs(shares);
-    }
+    public void AddVolume(Company company, int shares) => company.TickVolume += Math.Abs(shares);
 
     public void Tick()
     {
@@ -204,7 +194,7 @@ public sealed class ExchangeMarket
             TickCompany(company);
         }
 
-        if (Ticks % _settings.DividendEvery == 0)
+        if (Ticks % Settings.DividendEvery == 0)
             PayDividends();
 
         foreach (var report in Earnings)
@@ -256,7 +246,7 @@ public sealed class ExchangeMarket
             {
                 if (!company.Proto.Factors.TryGetValue(id, out var loading))
                     continue;
-                company.Value = MathF.Max(ExchangeMath.MinPrice, company.Value * (1f + shock * loading));
+                company.Value = MathF.Max(ExchangeMath.MinPrice, company.Value * (1f + (shock * loading)));
                 company.QuarterNews += shock * loading;
             }
 
@@ -267,8 +257,8 @@ public sealed class ExchangeMarket
     private void TickCompany(Company company)
     {
         var proto = company.Proto;
-        company.Value += _settings.ValueReversion * (proto.Price - company.Value);
-        company.OrderBoost *= 1f - _settings.ValueReversion;
+        company.Value += Settings.ValueReversion * (proto.Price - company.Value);
+        company.OrderBoost *= 1f - Settings.ValueReversion;
         company.OrderAddedThisTick = 0f;
 
         var noise = proto.Volatility * Gaussian();
@@ -280,19 +270,19 @@ public sealed class ExchangeMarket
 
         var target = company.Value * (1f + company.OrderBoost);
         var open = company.Price;
-        var change = proto.PriceReversion * (target - open) / open + proto.Momentum * company.LastReturn + noise;
+        var change = (proto.PriceReversion * (target - open) / open) + (proto.Momentum * company.LastReturn) + noise;
         var close = MathF.Max(ExchangeMath.MinPrice, open * (1f + change));
-        company.LastReturn = close / open - 1f;
+        company.LastReturn = (close / open) - 1f;
         company.Price = close;
 
-        var wick = 1f + MathF.Abs(Gaussian()) * proto.Volatility * 0.5f;
+        var wick = 1f + (MathF.Abs(Gaussian()) * proto.Volatility * 0.5f);
         var high = MathF.Max(open, close) * wick;
         var low = MathF.Min(open, close) / wick;
-        var volume = proto.Volume * (1f + 3f * MathF.Abs(company.LastReturn) / (proto.Volatility + 0.001f))
-            * MathF.Exp(0.3f * Gaussian()) + company.TickVolume;
+        var volume = (proto.Volume * (1f + (3f * MathF.Abs(company.LastReturn) / (proto.Volatility + 0.001f)))
+            * MathF.Exp(0.3f * Gaussian())) + company.TickVolume;
 
         company.Candles.Add(new ExchangeCandle(open, high, low, close, volume));
-        if (company.Candles.Count > _settings.HistoryLength)
+        if (company.Candles.Count > Settings.HistoryLength)
             company.Candles.RemoveAt(0);
 
         company.TickVolume = 0f;
@@ -320,11 +310,11 @@ public sealed class ExchangeMarket
     {
         foreach (var company in Companies.Values)
         {
-            var first = _random.Next(_settings.EarningsMinTick, _settings.EarningsMaxTick + 1);
+            var first = _random.Next(Settings.EarningsMinTick, Settings.EarningsMaxTick + 1);
             Earnings.Add(new ExchangeEarningsReport(company.Proto.ID, first, Consensus(company)));
 
             var second = first + _random.Next(40, 70);
-            if (_random.NextFloat() < _settings.SecondReportChance)
+            if (_random.NextFloat() < Settings.SecondReportChance)
                 Earnings.Add(new ExchangeEarningsReport(company.Proto.ID, second, Consensus(company)));
         }
 
@@ -332,9 +322,7 @@ public sealed class ExchangeMarket
     }
 
     private float Consensus(Company company)
-    {
-        return MathF.Round(company.Proto.Earnings * (1f + _settings.ConsensusNoise * Gaussian()), 2);
-    }
+        => MathF.Round(company.Proto.Earnings * (1f + (Settings.ConsensusNoise * Gaussian())), 2);
 
     /// <summary>
     /// The result follows what happened to the company this quarter, plus some luck; the move follows the surprise.
@@ -343,19 +331,19 @@ public sealed class ExchangeMarket
     {
         var company = Companies[report.Company];
         var actual = company.Proto.Earnings * (1f
-            + _settings.EarningsFromNews * company.QuarterNews
-            + _settings.EarningsFromOrders * company.QuarterOrders
-            + _settings.EarningsNoise * Gaussian());
+            + (Settings.EarningsFromNews * company.QuarterNews)
+            + (Settings.EarningsFromOrders * company.QuarterOrders)
+            + (Settings.EarningsNoise * Gaussian()));
         actual = MathF.Round(actual, 2);
         report.Actual = actual;
         company.QuarterNews = 0f;
         company.QuarterOrders = 0f;
 
-        var surprise = actual / MathF.Max(0.01f, report.Consensus) - 1f;
-        var shock = Math.Clamp(surprise * company.Proto.EarningsSensitivity, -_settings.EarningsMaxShock, _settings.EarningsMaxShock);
+        var surprise = (actual / MathF.Max(0.01f, report.Consensus)) - 1f;
+        var shock = Math.Clamp(surprise * company.Proto.EarningsSensitivity, -Settings.EarningsMaxShock, Settings.EarningsMaxShock);
         QueueShock(company.Proto.ID, shock);
 
-        var text = MathF.Abs(surprise) < _settings.InLineBand ? "guild-exchange-earnings-inline"
+        var text = MathF.Abs(surprise) < Settings.InLineBand ? "guild-exchange-earnings-inline"
             : surprise > 0 ? "guild-exchange-earnings-beat"
             : "guild-exchange-earnings-miss";
         _news.Add(new ExchangeNewsItem(ExchangeNewsKind.Earnings, text, company.Proto.ID,
@@ -365,7 +353,7 @@ public sealed class ExchangeMarket
     private void News()
     {
         var roll = _random.NextFloat();
-        if (roll < _settings.FactorNewsChance && _factors.Count > 0)
+        if (roll < Settings.FactorNewsChance && _factors.Count > 0)
         {
             var factor = _factors[_random.Next(0, _factors.Count)];
             var good = _random.NextFloat() < 0.5f;
@@ -376,7 +364,7 @@ public sealed class ExchangeMarket
         }
 
         var company = Companies.Values.ElementAt(_random.Next(0, Companies.Count));
-        if (roll < _settings.FactorNewsChance + _settings.StoryChance && _storyProtos.Count > 0)
+        if (roll < Settings.FactorNewsChance + Settings.StoryChance && _storyProtos.Count > 0)
         {
             var story = _storyProtos[_random.Next(0, _storyProtos.Count)];
             var outcome = PickOutcome(story);
@@ -386,17 +374,17 @@ public sealed class ExchangeMarket
         }
 
         var positive = _random.NextFloat() < 0.5f;
-        var general = _random.NextFloat() < _settings.GeneralNewsChance;
+        var general = _random.NextFloat() < Settings.GeneralNewsChance;
         var dataset = general
-            ? positive ? _settings.GeneralGoodNews : _settings.GeneralBadNews
+            ? positive ? Settings.GeneralGoodNews : Settings.GeneralBadNews
             : positive ? company.Proto.GoodNews : company.Proto.BadNews;
-        var rumour = _random.NextFloat() < _settings.RumourChance;
+        var rumour = _random.NextFloat() < Settings.RumourChance;
         var text = Pick(dataset);
         var shock = (positive ? 1f : -1f) * company.Proto.NewsShock * Size();
 
         _news.Add(new ExchangeNewsItem(rumour ? ExchangeNewsKind.Rumour : ExchangeNewsKind.Company, text, company.Proto.ID));
 
-        if (rumour && _random.NextFloat() < _settings.FalseRumourChance)
+        if (rumour && _random.NextFloat() < Settings.FalseRumourChance)
             return;
 
         Announce(company, shock);
@@ -427,8 +415,8 @@ public sealed class ExchangeMarket
     /// </summary>
     private (float Now, float Later) SplitHeadline(float shock)
     {
-        var real = _random.NextFloat() < _settings.NewsFadeChance ? -0.5f * shock : shock;
-        var now = real * _settings.NewsPricedIn;
+        var real = _random.NextFloat() < Settings.NewsFadeChance ? -0.5f * shock : shock;
+        var now = real * Settings.NewsPricedIn;
         return (now, real - now);
     }
 
@@ -473,9 +461,9 @@ public sealed class ExchangeMarket
     /// <summary>
     /// How big this piece of news is compared to a typical one.
     /// </summary>
-    private float Size() => 0.6f + 0.8f * _random.NextFloat();
+    private float Size() => 0.6f + (0.8f * _random.NextFloat());
 
-    private int NextNewsDelay() => _random.Next(_settings.NewsMinTicks, _settings.NewsMaxTicks + 1);
+    private int NextNewsDelay() => _random.Next(Settings.NewsMinTicks, Settings.NewsMaxTicks + 1);
 
     private float Gaussian() => (float) _random.NextGaussian();
 }

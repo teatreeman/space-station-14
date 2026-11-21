@@ -107,12 +107,12 @@ public sealed class ExchangeCandleChart : Control
         var volumeTop = size.Y * 0.82f;
         var (low, high) = Range();
         var range = MathF.Max(high - low, 0.0001f);
-        float Y(float price) => priceHeight - (price - low) / range * priceHeight;
+        float Y(float price) => priceHeight - ((price - low) / range * priceHeight);
 
         var label = handle.GetDimensions(_font, high.ToString("0.00"), UIScale);
-        var width = size.X - label.X - 8f * UIScale;
+        var width = size.X - label.X - (8f * UIScale);
         void DrawPrice(float price, Color color) => handle.DrawString(_font,
-            new Vector2(width + 4f * UIScale, Y(price) - label.Y / 2f), price.ToString("0.00"), UIScale, color);
+            new Vector2(width + (4f * UIScale), Y(price) - (label.Y / 2f)), price.ToString("0.00"), UIScale, color);
 
         for (var i = 1; i < 4; i++)
         {
@@ -136,31 +136,31 @@ public sealed class ExchangeCandleChart : Control
             maxVolume = MathF.Max(maxVolume, candle.Volume);
         }
 
-        var offset = width - slot * _grouped.Count;
+        var offset = width - (slot * _grouped.Count);
         for (var i = 0; i < _grouped.Count; i++)
         {
             var candle = _grouped[i];
             var color = candle.Close >= candle.Open ? Up : Down;
-            var x = offset + slot * (i + 0.5f);
+            var x = offset + (slot * (i + 0.5f));
 
             handle.DrawLine(new Vector2(x, Y(candle.High)), new Vector2(x, Y(candle.Low)), color);
             var top = Y(MathF.Max(candle.Open, candle.Close));
             var bottom = MathF.Max(top + 1f, Y(MathF.Min(candle.Open, candle.Close)));
-            handle.DrawRect(new UIBox2(x - body / 2f, top, x + body / 2f, bottom), color);
+            handle.DrawRect(new UIBox2(x - (body / 2f), top, x + (body / 2f), bottom), color);
 
             var barHeight = (size.Y - volumeTop) * candle.Volume / maxVolume;
-            handle.DrawRect(new UIBox2(x - body / 2f, size.Y - barHeight, x + body / 2f, size.Y), color.WithAlpha(0.5f));
+            handle.DrawRect(new UIBox2(x - (body / 2f), size.Y - barHeight, x + (body / 2f), size.Y), color.WithAlpha(0.5f));
         }
 
         var latest = _grouped[^1];
         var latestY = Y(latest.Close);
         for (var i = 1; i < 4; i++)
         {
-            if (MathF.Abs(priceHeight * i / 4f - latestY) > label.Y)
-                DrawPrice(high - range * i / 4f, Scale);
+            if (MathF.Abs((priceHeight * i / 4f) - latestY) > label.Y)
+                DrawPrice(high - (range * i / 4f), Scale);
         }
 
-        handle.DrawRect(new UIBox2(width, latestY - label.Y / 2f, size.X, latestY + label.Y / 2f), latest.Close >= latest.Open ? Up : Down);
+        handle.DrawRect(new UIBox2(width, latestY - (label.Y / 2f), size.X, latestY + (label.Y / 2f)), latest.Close >= latest.Open ? Up : Down);
         DrawPrice(latest.Close, Color.Black);
 
         if (!ShowAverage || _grouped.Count < 2)
@@ -176,7 +176,7 @@ public sealed class ExchangeCandleChart : Control
                 sum += _grouped[j].Close;
             }
 
-            var point = new Vector2(offset + slot * (i + 0.5f), Y(sum / (i - from + 1)));
+            var point = new Vector2(offset + (slot * (i + 0.5f)), Y(sum / (i - from + 1)));
             if (last is { } previous)
                 handle.DrawLine(previous, point, Average);
             last = point;

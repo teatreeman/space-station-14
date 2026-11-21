@@ -86,9 +86,7 @@ public sealed partial class GuildExchangeSystem
     }
 
     private IExchangeWallet WalletOf(EntityUid owner, ExchangeAccount account)
-    {
-        return account.Cargo ? new BankWallet(_cargo, owner, account.CargoAccount) : new CashWallet(account);
-    }
+        => account.Cargo ? new BankWallet(_cargo, owner, account.CargoAccount) : new CashWallet(account);
 
     /// <summary>
     /// Whether to skip this message's work for now. With <paramref name="answerLater"/> the viewer still gets their account
@@ -216,9 +214,7 @@ public sealed partial class GuildExchangeSystem
     }
 
     private bool HasFullBudgetAccess(Entity<GuildExchangeComponent> ent, EntityUid actor)
-    {
-        return _access.FindAccessTags(actor).Contains(ent.Comp.FullBudgetAccess);
-    }
+        => _access.FindAccessTags(actor).Contains(ent.Comp.FullBudgetAccess);
 
     /// <summary>
     /// Unlocks the station's whole cargo budget for the actor, or locks it again. Returns why it failed, or null.
@@ -457,34 +453,24 @@ public sealed partial class GuildExchangeSystem
         return null;
     }
 
-    private static string Verb(ExchangeOrderSide side)
+    private static string Verb(ExchangeOrderSide side) => side switch
     {
-        return side switch
-        {
-            ExchangeOrderSide.Buy => "bought",
-            ExchangeOrderSide.Sell => "sold",
-            ExchangeOrderSide.Short => "shorted",
-            _ => "covered",
-        };
-    }
+        ExchangeOrderSide.Buy => "bought",
+        ExchangeOrderSide.Sell => "sold",
+        ExchangeOrderSide.Short => "shorted",
+        _ => "covered",
+    };
 
     /// <summary>
     /// What one share went for, fee included.
     /// </summary>
     private static string Price(ExchangeTradeResult result)
-    {
-        return (result.Money / (float) Math.Max(1, result.Shares)).ToString("0.00");
-    }
+        => (result.Money / (float) Math.Max(1, result.Shares)).ToString("0.00");
 
-    private static string AccountKind(ExchangeAccount account)
-    {
-        return account.Cargo ? "cargo" : "personal";
-    }
+    private static string AccountKind(ExchangeAccount account) => account.Cargo ? "cargo" : "personal";
 
     private string TraderName(ExchangeAccount account)
-    {
-        return account.Cargo ? Loc.GetString("guild-exchange-cargo-trader") : account.Holder;
-    }
+        => account.Cargo ? Loc.GetString("guild-exchange-cargo-trader") : account.Holder;
 
     private void LogTrade(EntityUid machine, EntityUid actor, ExchangeAccount account, ExchangeOrderSide side, string ticker,
         ExchangeTradeResult result, string? note)
@@ -530,7 +516,7 @@ public sealed partial class GuildExchangeSystem
             }
 
             foreach (var (order, result) in ExchangeLedger.FillLimits(market, account, wallet,
-                         () => account.Cargo ? ExchangeLedger.CapLeft(account, wallet.Balance, _settings.CargoCap) : null))
+                () => account.Cargo ? ExchangeLedger.CapLeft(account, wallet.Balance, _settings.CargoCap) : null))
             {
                 var ticker = market.Companies[order.Company].Proto.Ticker;
                 if (result.Ok)

@@ -103,9 +103,7 @@ public sealed partial class GuildExchangeWindow : FancyWindow
     }
 
     private string Clock(TimeSpan time)
-    {
-        return _entMan.System<SharedTimeSystem>().GetStationTime(time).Time.ToString(@"hh\:mm");
-    }
+        => _entMan.System<SharedTimeSystem>().GetStationTime(time).Time.ToString(@"hh\:mm");
 
     private ExchangeCompanyState? Selected => _market?.Companies.FirstOrDefault(c => c.Id == _selected);
 
@@ -187,7 +185,7 @@ public sealed partial class GuildExchangeWindow : FancyWindow
         if (Selected is not { } company)
             return;
 
-        var change = company.Price / company.Open - 1f;
+        var change = (company.Price / company.Open) - 1f;
         CompanyTitle.Text = Loc.GetString("guild-exchange-window-company-title", ("ticker", company.Ticker), ("name", company.Name),
             ("sector", company.Sector));
         QuoteLabel.Text = Loc.GetString("guild-exchange-window-quote",
@@ -208,7 +206,7 @@ public sealed partial class GuildExchangeWindow : FancyWindow
             return;
         }
 
-        ChartStart.Text = Clock(_chartLast - _chartInterval * Chart.Candles.Count);
+        ChartStart.Text = Clock(_chartLast - (_chartInterval * Chart.Candles.Count));
         ChartEnd.Text = Clock(_chartLast);
     }
 
@@ -220,7 +218,7 @@ public sealed partial class GuildExchangeWindow : FancyWindow
 
         foreach (var company in _market.Companies)
         {
-            var change = company.Price / company.Open - 1f;
+            var change = (company.Price / company.Open) - 1f;
             var button = new ContainerButton
             {
                 Name = $"Watch{company.Ticker}",
@@ -259,7 +257,7 @@ public sealed partial class GuildExchangeWindow : FancyWindow
 
         _tape = string.Join("   ", _market.Companies.Select(c =>
         {
-            var change = c.Price / c.Open - 1f;
+            var change = (c.Price / c.Open) - 1f;
             return $"{c.Ticker} {c.Price:0.00} {(change >= 0 ? "▲" : "▼")}{Percent(change)}";
         })) + "   ";
         _tapeOffset %= Math.Max(1, _tape.Length);
@@ -501,16 +499,11 @@ public sealed partial class GuildExchangeWindow : FancyWindow
         RefreshChartLabels();
     }
 
-    private int Quantity()
-    {
-        return int.TryParse(QtyEdit.Text.Trim(), out var shares) ? shares : 0;
-    }
+    private int Quantity() => int.TryParse(QtyEdit.Text.Trim(), out var shares) ? shares : 0;
 
     private float LimitPrice()
-    {
-        return float.TryParse(PriceEdit.Text.Trim(), System.Globalization.NumberStyles.Float,
+        => float.TryParse(PriceEdit.Text.Trim(), System.Globalization.NumberStyles.Float,
             System.Globalization.CultureInfo.InvariantCulture, out var price) ? price : 0f;
-    }
 
     private void UpdateEstimate()
     {
@@ -625,15 +618,10 @@ public sealed partial class GuildExchangeWindow : FancyWindow
         NoticeLabel.SetMessage(text ?? string.Empty, success ? Up : Down);
     }
 
-    private static string Percent(float change)
-    {
-        return (change >= 0 ? "+" : "") + (change * 100f).ToString("0.0") + "%";
-    }
+    private static string Percent(float change) => (change >= 0 ? "+" : "") + (change * 100f).ToString("0.0") + "%";
 
     private static string Volume(float volume)
-    {
-        return volume >= 1000f ? (volume / 1000f).ToString("0.0") + "k" : volume.ToString("0");
-    }
+        => volume >= 1000f ? (volume / 1000f).ToString("0.0") + "k" : volume.ToString("0");
 
     protected override void FrameUpdate(FrameEventArgs args)
     {

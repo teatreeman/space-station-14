@@ -128,9 +128,7 @@ public static class ExchangeLedger
     /// Spesos of an account's budget at stake: what it paid for shares and what its shorts sold.
     /// </summary>
     public static long Exposure(ExchangeAccount account)
-    {
-        return account.Longs.Values.Sum(l => l.Cost) + account.Shorts.Values.Sum(s => s.Proceeds);
-    }
+        => account.Longs.Values.Sum(l => l.Cost) + account.Shorts.Values.Sum(s => s.Proceeds);
 
     /// <summary>
     /// How much more of a budget may go into shares and shorts under a cap on budget plus money already put in.
@@ -143,9 +141,7 @@ public static class ExchangeLedger
 
     private static bool TryGetCompany(ExchangeMarket market, string companyId, int shares,
         [NotNullWhen(true)] out ExchangeMarket.Company? company)
-    {
-        return market.Companies.TryGetValue(companyId, out company) && shares > 0;
-    }
+        => market.Companies.TryGetValue(companyId, out company) && shares > 0;
 
     /// <summary>
     /// Buys shares at the ask, fee on top.
@@ -345,10 +341,7 @@ public static class ExchangeLedger
     /// <summary>
     /// Drops a resting order. Returns whether there was one.
     /// </summary>
-    public static bool CancelLimit(ExchangeAccount account, int id)
-    {
-        return account.Orders.RemoveAll(o => o.Id == id) > 0;
-    }
+    public static bool CancelLimit(ExchangeAccount account, int id) => account.Orders.RemoveAll(o => o.Id == id) > 0;
 
     /// <summary>
     /// Fills resting orders whose price has been reached. Each fills whole at the market or is cancelled if it can't.

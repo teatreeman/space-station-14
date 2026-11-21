@@ -14,28 +14,24 @@ public static class ExchangeMath
     /// <summary>
     /// The price a buyer pays for one share.
     /// </summary>
-    public static float Ask(float price, float spread) => price * (1f + spread / 2f);
+    public static float Ask(float price, float spread) => price * (1f + (spread / 2f));
 
     /// <summary>
     /// The price a seller gets for one share.
     /// </summary>
-    public static float Bid(float price, float spread) => price * (1f - spread / 2f);
+    public static float Bid(float price, float spread) => price * (1f - (spread / 2f));
 
     /// <summary>
     /// What buying <paramref name="shares"/> costs.
     /// </summary>
     public static long Buy(float price, int shares, float spread, float fee)
-    {
-        return (long) Math.Ceiling((double) Ask(price, spread) * shares * (1.0 + fee));
-    }
+        => (long) Math.Ceiling((double) Ask(price, spread) * shares * (1.0 + fee));
 
     /// <summary>
     /// What selling <paramref name="shares"/> pays.
     /// </summary>
     public static long Sell(float price, int shares, float spread, float fee)
-    {
-        return (long) Math.Floor((double) Bid(price, spread) * shares * (1.0 - fee));
-    }
+        => (long) Math.Floor((double) Bid(price, spread) * shares * (1.0 - fee));
 
     /// <summary>
     /// The most shares that cost no more than <paramref name="budget"/>.

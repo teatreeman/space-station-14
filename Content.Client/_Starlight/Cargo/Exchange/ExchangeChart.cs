@@ -39,10 +39,10 @@ public sealed class ExchangeChart : Control
         }
 
         // Keep a flat line in the middle instead of dividing by nothing.
-        var range = MathF.Max(max - min, max * 0.01f + 0.01f);
+        var range = MathF.Max(max - min, (max * 0.01f) + 0.01f);
         var size = PixelSize;
         Vector2 At(int i, float price) => new(i * (size.X - 1f) / (Points.Count - 1),
-            size.Y - 2f - (price - min) / range * (size.Y - 4f));
+            size.Y - 2f - ((price - min) / range * (size.Y - 4f)));
 
         if (Reference is { } line)
         {
