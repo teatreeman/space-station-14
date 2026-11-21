@@ -1,0 +1,40 @@
+# Which company supplies each kind of cargo order. Products listed here override their category.
+
+- type: exchangeSuppliers
+  id: Default
+  default: NanoTrasen
+  categories:
+    cargoproduct-category-name-food: DonkCo
+    cargoproduct-category-name-hydroponics: DonkCo
+    cargoproduct-category-name-livestock: DonkCo
+    cargoproduct-category-name-medical: Interdyne
+    cargoproduct-category-name-emergency: MedTak
+    cargoproduct-category-name-materials: Vulcan
+    cargoproduct-category-name-cargo: Vulcan
+    cargoproduct-category-name-atmospherics: VioletSky
+    cargoproduct-category-name-engineering: VioletSky
+    cargoproduct-category-name-science: Cybersun
+    cargoproduct-category-name-security: WaffleCo
+    cargoproduct-category-name-armory: WaffleCo
+  products:
+    # First aid kits and emergency gear come from the medical crews, not the drug makers.
+    EmergencyBurnKit: MedTak
+    EmergencyToxinKit: MedTak
+    EmergencyO2Kit: MedTak
+    EmergencyBruteKit: MedTak
+    EmergencyAdvancedKit: MedTak
+    EmergencyRadiationKit: MedTak
+    MedicalBodybags: MedTak
+    # Robots and AI are Cybersun's; station engines and power stay with NanoTrasen.
+    CrateVendingMachineRestockRobotics: Cybersun
+    StationAiCore: Cybersun
+    StationAiUpload: Cybersun
+    CrewMonitoring: Cybersun
+    EngineSingularityGenerator: NanoTrasen
+    EngineTeslaGenerator: NanoTrasen
+    EngineAmeJar: NanoTrasen
+    SupermatterFlatpackPurchase: NanoTrasen
+    NuclearReactorFlatpackPurchase: NanoTrasen
+    MaterialPlasma: VioletSky
+    # Mining and salvage gear.
+    CrateVendingMachineRestockSalvageEquipment: Vulcan

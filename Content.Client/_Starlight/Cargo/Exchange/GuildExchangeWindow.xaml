@@ -1,0 +1,113 @@
+<controls:FancyWindow xmlns="https://spacestation14.io"
+                      xmlns:controls="clr-namespace:Content.Client.UserInterface.Controls"
+                      xmlns:exchange="clr-namespace:Content.Client._Starlight.Cargo.Exchange"
+                      xmlns:crt="clr-namespace:Content.Client._Starlight.Arcade.Crt"
+                      Title="{Loc 'guild-exchange-window-title'}"
+                      MinSize="1000 560"
+                      SetSize="1200 690">
+    <Control HorizontalExpand="True" VerticalExpand="True">
+        <PanelContainer Name="Background" HorizontalExpand="True" VerticalExpand="True">
+            <BoxContainer Orientation="Vertical" Margin="6" SeparationOverride="4">
+                <!-- Header: brand, command line and station clock -->
+                <BoxContainer Orientation="Horizontal" SeparationOverride="10">
+                    <Label Name="BrandLabel" Text="{Loc 'guild-exchange-window-brand'}" StyleClasses="monospace" />
+                    <Label Name="LicenceLabel" Text="{Loc 'guild-exchange-window-licence'}" StyleClasses="monospace" />
+                    <Control HorizontalExpand="True" />
+                    <LineEdit Name="CommandLine" MinWidth="200" PlaceHolder="{Loc 'guild-exchange-window-command-placeholder'}" />
+                    <Label Name="ClockLabel" StyleClasses="monospace" MinWidth="120" />
+                </BoxContainer>
+                <Label Name="TickerLabel" ClipText="True" HorizontalExpand="True" StyleClasses="monospace" />
+                <BoxContainer Orientation="Horizontal" VerticalExpand="True" SeparationOverride="10">
+                    <!-- Markets and order entry -->
+                    <BoxContainer Orientation="Vertical" SetWidth="300" SeparationOverride="2">
+                        <Label Name="MarketsTitle" Text="{Loc 'guild-exchange-window-markets'}" />
+                        <Label Name="WatchHeader" Text="{Loc 'guild-exchange-window-watch-header'}" StyleClasses="monospace" />
+                        <ScrollContainer HScrollEnabled="False" VerticalExpand="True">
+                            <BoxContainer Name="Watchlist" Orientation="Vertical" SeparationOverride="2" />
+                        </ScrollContainer>
+                        <Label Name="OrderTitle" Text="{Loc 'guild-exchange-window-order-entry'}" Margin="0 6 0 0" />
+                        <BoxContainer Orientation="Horizontal" SeparationOverride="2">
+                            <Button Name="SideBuy" Text="{Loc 'guild-exchange-window-side-buy'}" ToggleMode="True" />
+                            <Button Name="SideSell" Text="{Loc 'guild-exchange-window-side-sell'}" ToggleMode="True" />
+                            <Button Name="SideShort" Text="{Loc 'guild-exchange-window-side-short'}" ToggleMode="True" />
+                            <Button Name="SideCover" Text="{Loc 'guild-exchange-window-side-cover'}" ToggleMode="True" />
+                        </BoxContainer>
+                        <BoxContainer Orientation="Horizontal" SeparationOverride="2">
+                            <Button Name="TypeMarket" Text="{Loc 'guild-exchange-window-type-market'}" ToggleMode="True" />
+                            <Button Name="TypeLimit" Text="{Loc 'guild-exchange-window-type-limit'}" ToggleMode="True" />
+                        </BoxContainer>
+                        <BoxContainer Orientation="Horizontal" SeparationOverride="4">
+                            <Label Text="{Loc 'guild-exchange-window-qty'}" MinWidth="70" StyleClasses="monospace" />
+                            <LineEdit Name="QtyEdit" HorizontalExpand="True" Text="10" />
+                            <Button Name="MaxButton" Text="{Loc 'guild-exchange-window-max'}" />
+                        </BoxContainer>
+                        <BoxContainer Name="LimitRow" Orientation="Horizontal" SeparationOverride="4">
+                            <Label Text="{Loc 'guild-exchange-window-limit'}" MinWidth="70" StyleClasses="monospace" />
+                            <LineEdit Name="PriceEdit" HorizontalExpand="True" />
+                        </BoxContainer>
+                        <Label Name="EstimateLabel" StyleClasses="monospace" ClipText="True" />
+                        <Button Name="SubmitOrder" Text="{Loc 'guild-exchange-window-submit'}" />
+                        <RichTextLabel Name="NoticeLabel" StyleClasses="monospace" />
+                        <RichTextLabel Name="HintLabel" />
+                    </BoxContainer>
+                    <!-- Selected company: quote, chart and portfolio -->
+                    <BoxContainer Orientation="Vertical" HorizontalExpand="True" SeparationOverride="4">
+                        <Label Name="CompanyTitle" ClipText="True" HorizontalExpand="True" />
+                        <Label Name="QuoteLabel" ClipText="True" StyleClasses="monospace" />
+                        <BoxContainer Orientation="Horizontal" SeparationOverride="4">
+                            <Button Name="Tf1" Text="{Loc 'guild-exchange-window-tf-1'}" ToggleMode="True" />
+                            <Button Name="Tf5" Text="{Loc 'guild-exchange-window-tf-5'}" ToggleMode="True" />
+                            <Button Name="Tf10" Text="{Loc 'guild-exchange-window-tf-10'}" ToggleMode="True" />
+                            <Button Name="AverageButton" Text="{Loc 'guild-exchange-window-ma'}" ToggleMode="True" />
+                        </BoxContainer>
+                        <exchange:ExchangeCandleChart Name="Chart" MinHeight="120" VerticalExpand="True" SizeFlagsStretchRatio="2" />
+                        <BoxContainer Orientation="Horizontal">
+                            <Label Name="ChartStart" StyleClasses="monospace" />
+                            <Control HorizontalExpand="True" />
+                            <Label Name="ChartEnd" StyleClasses="monospace" />
+                        </BoxContainer>
+                        <BoxContainer Orientation="Horizontal" SeparationOverride="2" Margin="0 6 0 0">
+                            <Label Name="PortfolioTitle" Text="{Loc 'guild-exchange-window-portfolio'}" />
+                            <Control HorizontalExpand="True" />
+                            <Button Name="PersonalButton" Text="{Loc 'guild-exchange-window-account-personal'}" ToggleMode="True" />
+                            <Button Name="CargoButton" Text="{Loc 'guild-exchange-window-account-cargo'}" ToggleMode="True" Visible="False" />
+                            <Button Name="FullBudgetButton" Text="{Loc 'guild-exchange-window-full-budget'}" ToggleMode="True" Visible="False" />
+                        </BoxContainer>
+                        <BoxContainer Orientation="Horizontal" SeparationOverride="4">
+                            <Label Name="CashLabel" StyleClasses="monospace" ClipText="True" HorizontalExpand="True" />
+                            <Button Name="WithdrawButton" Text="{Loc 'guild-exchange-window-withdraw'}" Visible="False" />
+                        </BoxContainer>
+                        <Label Name="CapLabel" StyleClasses="monospace" ClipText="True" />
+                        <Label Name="PnlLabel" StyleClasses="monospace" ClipText="True" />
+                        <Label Name="PositionsHeader" Text="{Loc 'guild-exchange-window-positions-header'}" StyleClasses="monospace" ClipText="True" />
+                        <ScrollContainer HScrollEnabled="False" VerticalExpand="True" MinHeight="40">
+                            <BoxContainer Orientation="Vertical">
+                                <BoxContainer Name="Positions" Orientation="Vertical" />
+                                <Label Name="OrdersTitle" StyleClasses="monospace" ClipText="True" Margin="0 4 0 0" />
+                                <BoxContainer Name="Orders" Orientation="Vertical" />
+                            </BoxContainer>
+                        </ScrollContainer>
+                    </BoxContainer>
+                    <!-- Wire, calendar and tape -->
+                    <TabContainer Name="SideTabs" SetWidth="320" VerticalExpand="True">
+                        <ScrollContainer Name="WireTab" HScrollEnabled="False" VerticalExpand="True">
+                            <BoxContainer Name="NewsList" Orientation="Vertical" SeparationOverride="6" Margin="4" />
+                        </ScrollContainer>
+                        <ScrollContainer Name="CalendarTab" HScrollEnabled="False" VerticalExpand="True">
+                            <BoxContainer Name="CalendarList" Orientation="Vertical" SeparationOverride="6" Margin="4" />
+                        </ScrollContainer>
+                        <ScrollContainer Name="TapeTab" HScrollEnabled="False" VerticalExpand="True">
+                            <BoxContainer Name="TradeList" Orientation="Vertical" SeparationOverride="6" Margin="4" />
+                        </ScrollContainer>
+                    </TabContainer>
+                </BoxContainer>
+                <BoxContainer Orientation="Horizontal">
+                    <Label Name="MottoLabel" Text="{Loc 'guild-exchange-window-motto'}" />
+                    <Control HorizontalExpand="True" />
+                    <Label Name="CostsLabel" StyleClasses="monospace" />
+                </BoxContainer>
+            </BoxContainer>
+        </PanelContainer>
+        <crt:ArcadeCrtOverlayControl />
+    </Control>
+</controls:FancyWindow>

@@ -1,0 +1,41 @@
+# Things many companies move with. Each company says how strongly it follows each one.
+
+- type: exchangeFactor
+  id: Market
+  tag: MKT
+  volatility: 0.02
+  newsShock: 0.18
+  goodNews: GuildExchangeNewsFactorMarketGood
+  badNews: GuildExchangeNewsFactorMarketBad
+
+- type: exchangeFactor
+  id: Plasma
+  tag: PLSM
+  volatility: 0.03
+  newsShock: 0.27
+  goodNews: GuildExchangeNewsFactorPlasmaGood
+  badNews: GuildExchangeNewsFactorPlasmaBad
+
+- type: exchangeFactor
+  id: Frontier
+  tag: FRNT
+  volatility: 0.02
+  newsShock: 0.225
+  goodNews: GuildExchangeNewsFactorFrontierGood
+  badNews: GuildExchangeNewsFactorFrontierBad
+
+- type: exchangeFactor
+  id: Syndicate
+  tag: SYND
+  volatility: 0.02
+  newsShock: 0.225
+  goodNews: GuildExchangeNewsFactorSyndicateGood
+  badNews: GuildExchangeNewsFactorSyndicateBad
+
+- type: exchangeFactor
+  id: Rivalry
+  tag: NT/CYBS
+  volatility: 0.015
+  newsShock: 0.225
+  goodNews: GuildExchangeNewsFactorRivalryGood
+  badNews: GuildExchangeNewsFactorRivalryBad

@@ -1,0 +1,175 @@
+# Headline pools for the Guild Exchange wire. The lines live in guild-exchange.ftl.
+
+- type: localizedDataset
+  id: GuildExchangeNewsNtGood
+  values:
+    prefix: guild-exchange-news-nt-good-
+    count: 16
+
+- type: localizedDataset
+  id: GuildExchangeNewsNtBad
+  values:
+    prefix: guild-exchange-news-nt-bad-
+    count: 16
+
+- type: localizedDataset
+  id: GuildExchangeNewsCybsGood
+  values:
+    prefix: guild-exchange-news-cybs-good-
+    count: 16
+
+- type: localizedDataset
+  id: GuildExchangeNewsCybsBad
+  values:
+    prefix: guild-exchange-news-cybs-bad-
+    count: 16
+
+- type: localizedDataset
+  id: GuildExchangeNewsDonkGood
+  values:
+    prefix: guild-exchange-news-donk-good-
+    count: 16
+
+- type: localizedDataset
+  id: GuildExchangeNewsDonkBad
+  values:
+    prefix: guild-exchange-news-donk-bad-
+    count: 16
+
+- type: localizedDataset
+  id: GuildExchangeNewsIntdGood
+  values:
+    prefix: guild-exchange-news-intd-good-
+    count: 16
+
+- type: localizedDataset
+  id: GuildExchangeNewsIntdBad
+  values:
+    prefix: guild-exchange-news-intd-bad-
+    count: 16
+
+- type: localizedDataset
+  id: GuildExchangeNewsVskyGood
+  values:
+    prefix: guild-exchange-news-vsky-good-
+    count: 16
+
+- type: localizedDataset
+  id: GuildExchangeNewsVskyBad
+  values:
+    prefix: guild-exchange-news-vsky-bad-
+    count: 16
+
+- type: localizedDataset
+  id: GuildExchangeNewsMtakGood
+  values:
+    prefix: guild-exchange-news-mtak-good-
+    count: 16
+
+- type: localizedDataset
+  id: GuildExchangeNewsMtakBad
+  values:
+    prefix: guild-exchange-news-mtak-bad-
+    count: 16
+
+- type: localizedDataset
+  id: GuildExchangeNewsVulcGood
+  values:
+    prefix: guild-exchange-news-vulc-good-
+    count: 16
+
+- type: localizedDataset
+  id: GuildExchangeNewsVulcBad
+  values:
+    prefix: guild-exchange-news-vulc-bad-
+    count: 16
+
+- type: localizedDataset
+  id: GuildExchangeNewsWaflGood
+  values:
+    prefix: guild-exchange-news-wafl-good-
+    count: 16
+
+- type: localizedDataset
+  id: GuildExchangeNewsWaflBad
+  values:
+    prefix: guild-exchange-news-wafl-bad-
+    count: 16
+
+- type: localizedDataset
+  id: GuildExchangeNewsAnyGood
+  values:
+    prefix: guild-exchange-news-any-good-
+    count: 20
+
+- type: localizedDataset
+  id: GuildExchangeNewsAnyBad
+  values:
+    prefix: guild-exchange-news-any-bad-
+    count: 20
+
+- type: localizedDataset
+  id: GuildExchangeNewsFactorMarketGood
+  values:
+    prefix: guild-exchange-news-factor-market-good-
+    count: 6
+
+- type: localizedDataset
+  id: GuildExchangeNewsFactorMarketBad
+  values:
+    prefix: guild-exchange-news-factor-market-bad-
+    count: 6
+
+- type: localizedDataset
+  id: GuildExchangeNewsFactorPlasmaGood
+  values:
+    prefix: guild-exchange-news-factor-plasma-good-
+    count: 6
+
+- type: localizedDataset
+  id: GuildExchangeNewsFactorPlasmaBad
+  values:
+    prefix: guild-exchange-news-factor-plasma-bad-
+    count: 6
+
+- type: localizedDataset
+  id: GuildExchangeNewsFactorFrontierGood
+  values:
+    prefix: guild-exchange-news-factor-frontier-good-
+    count: 6
+
+- type: localizedDataset
+  id: GuildExchangeNewsFactorFrontierBad
+  values:
+    prefix: guild-exchange-news-factor-frontier-bad-
+    count: 6
+
+- type: localizedDataset
+  id: GuildExchangeNewsFactorSyndicateGood
+  values:
+    prefix: guild-exchange-news-factor-syndicate-good-
+    count: 6
+
+- type: localizedDataset
+  id: GuildExchangeNewsFactorSyndicateBad
+  values:
+    prefix: guild-exchange-news-factor-syndicate-bad-
+    count: 6
+
+- type: localizedDataset
+  id: GuildExchangeNewsFactorRivalryGood
+  values:
+    prefix: guild-exchange-news-factor-rivalry-good-
+    count: 6
+
+- type: localizedDataset
+  id: GuildExchangeNewsFactorRivalryBad
+  values:
+    prefix: guild-exchange-news-factor-rivalry-bad-
+    count: 6
+
+- type: localizedDataset
+  id: GuildExchangeNewsOrders
+  values:
+    prefix: guild-exchange-orders-
+    count: 6
