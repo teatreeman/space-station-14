@@ -40,7 +40,15 @@ public abstract partial class SharedTimeSystem : EntitySystem
     /// </summary>
     public (TimeSpan Time, string Date) GetStationTime()
     {
-        var scaledTimeSinceStart = _timing.CurTime.Subtract(_gameTicker.RoundStartTimeSpan).Multiply(4);
+        return GetStationTime(_timing.CurTime);
+    }
+
+    /// <summary>
+    /// The station time and date at a given game time, as <see cref="GetStationTime()"/> shows them.
+    /// </summary>
+    public (TimeSpan Time, string Date) GetStationTime(TimeSpan curTime)
+    {
+        var scaledTimeSinceStart = curTime.Subtract(_gameTicker.RoundStartTimeSpan).Multiply(4);
         var stationTime = scaledTimeSinceStart.Add(ShiftStart);
 
         // very long shifts could roll over into the following day.

@@ -1,0 +1,173 @@
+# The companies listed on the Guild Exchange. Names, sectors and allegiances follow Starlight's lore.
+# Each company's numbers are its personality and stay the same every round, so players can learn them.
+
+# Steady and slow, pays a dividend, and moves against Cybersun.
+- type: exchangeCompany
+  id: NanoTrasen
+  ticker: NT
+  name: guild-exchange-company-nt
+  sector: guild-exchange-sector-conglomerate
+  price: 120
+  volatility: 0.03
+  spread: 0.0132
+  priceReversion: 0.35
+  newsShock: 0.3
+  earnings: 6.0
+  earningsSensitivity: 1.0
+  dividend: 0.01
+  volume: 6000
+  factors:
+    Market: 0.8
+    Plasma: 0.4
+    Rivalry: 1.0
+    Syndicate: -0.4
+  goodNews: GuildExchangeNewsNtGood
+  badNews: GuildExchangeNewsNtBad
+
+# Trends once it gets going, moves against NanoTrasen and with the Syndicate-friendly names.
+- type: exchangeCompany
+  id: Cybersun
+  ticker: CYBS
+  name: guild-exchange-company-cybs
+  sector: guild-exchange-sector-cybernetics
+  price: 85
+  volatility: 0.07
+  spread: 0.0264
+  priceReversion: 0.3
+  momentum: 0.12
+  newsShock: 0.5
+  earnings: 3.4
+  earningsSensitivity: 1.6
+  volume: 3500
+  factors:
+    Market: 1.2
+    Rivalry: -1.0
+    Syndicate: 0.5
+  goodNews: GuildExchangeNewsCybsGood
+  badNews: GuildExchangeNewsCybsBad
+
+# Overshoots and snaps back. Follows frontier demand.
+- type: exchangeCompany
+  id: DonkCo
+  ticker: DONK
+  name: guild-exchange-company-donk
+  sector: guild-exchange-sector-food
+  price: 35
+  volatility: 0.05
+  spread: 0.033
+  priceReversion: 0.4
+  momentum: -0.1
+  newsShock: 0.4
+  earnings: 1.6
+  earningsSensitivity: 1.2
+  volume: 8000
+  factors:
+    Market: 0.8
+    Frontier: 1.0
+    Syndicate: 0.4
+  goodNews: GuildExchangeNewsDonkGood
+  badNews: GuildExchangeNewsDonkBad
+
+# Earnings move it more than anything else.
+- type: exchangeCompany
+  id: Interdyne
+  ticker: INTD
+  name: guild-exchange-company-intd
+  sector: guild-exchange-sector-pharma
+  price: 70
+  volatility: 0.06
+  spread: 0.0264
+  priceReversion: 0.3
+  newsShock: 0.45
+  earnings: 3.0
+  earningsSensitivity: 2.0
+  volume: 3000
+  factors:
+    Market: 1.0
+    Syndicate: 0.4
+  goodNews: GuildExchangeNewsIntdGood
+  badNews: GuildExchangeNewsIntdBad
+
+# Small, cheap and wild. Rides plasma prices and its own trends.
+- type: exchangeCompany
+  id: VioletSky
+  ticker: VSKY
+  name: guild-exchange-company-vsky
+  sector: guild-exchange-sector-plasma
+  price: 6
+  volatility: 0.125
+  spread: 0.055
+  priceReversion: 0.25
+  momentum: 0.15
+  newsShock: 0.7
+  earnings: 0.2
+  earningsSensitivity: 1.8
+  volume: 40000
+  factors:
+    Market: 1.4
+    Plasma: 1.5
+  goodNews: GuildExchangeNewsVskyGood
+  badNews: GuildExchangeNewsVskyBad
+
+# The quiet one. Pays a dividend and gains when stations have a bad day.
+- type: exchangeCompany
+  id: MedTak
+  ticker: MTAK
+  name: guild-exchange-company-mtak
+  sector: guild-exchange-sector-medical
+  price: 55
+  volatility: 0.035
+  spread: 0.0176
+  priceReversion: 0.35
+  newsShock: 0.3
+  earnings: 2.8
+  earningsSensitivity: 1.0
+  dividend: 0.012
+  volume: 2500
+  factors:
+    Market: 0.4
+  goodNews: GuildExchangeNewsMtakGood
+  badNews: GuildExchangeNewsMtakBad
+
+# Follows mining and frontier demand, and plasma a little.
+- type: exchangeCompany
+  id: Vulcan
+  ticker: VULC
+  name: guild-exchange-company-vulc
+  sector: guild-exchange-sector-mining
+  price: 60
+  volatility: 0.06
+  spread: 0.0264
+  priceReversion: 0.3
+  momentum: 0.1
+  newsShock: 0.45
+  earnings: 2.7
+  earningsSensitivity: 1.4
+  volume: 3000
+  factors:
+    Market: 1.1
+    Plasma: 0.6
+    Frontier: 0.9
+  goodNews: GuildExchangeNewsVulcGood
+  badNews: GuildExchangeNewsVulcBad
+
+# Volatile, trends, and rises when security gets busy or the Syndicate does well.
+- type: exchangeCompany
+  id: WaffleCo
+  ticker: WAFL
+  name: guild-exchange-company-wafl
+  sector: guild-exchange-sector-weapons
+  price: 45
+  volatility: 0.09
+  spread: 0.0396
+  priceReversion: 0.3
+  momentum: 0.1
+  newsShock: 0.6
+  earnings: 2.0
+  earningsSensitivity: 1.4
+  volume: 4000
+  factors:
+    Market: 1.0
+    Syndicate: 1.2
+  goodNews: GuildExchangeNewsWaflGood
+  badNews: GuildExchangeNewsWaflBad

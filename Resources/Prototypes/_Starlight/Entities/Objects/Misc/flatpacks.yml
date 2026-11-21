@@ -180,3 +180,12 @@
   components:
   - type: Flatpack
     entity: SalvageTechFab
+
+- type: entity
+  parent: BaseFlatpack
+  id: GuildExchangeTerminalFlatpack
+  name: Guild Exchange terminal flatpack
+  description: A flatpack used for constructing a Guild Exchange terminal.
+  components:
+  - type: Flatpack
+    entity: GuildExchangeTerminal
